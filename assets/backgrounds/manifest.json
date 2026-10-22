@@ -1,0 +1,29 @@
+{
+  "backgrounds": [
+    {
+      "id": "azure-cove",
+      "title": "Azure Cove",
+      "file": "azure-cove.jpg"
+    },
+    {
+      "id": "palm-shore",
+      "title": "Palm Shore",
+      "file": "palm-shore.jpg"
+    },
+    {
+      "id": "mountain-sunset",
+      "title": "Mountain Sunset",
+      "file": "mountain-sunset.jpg"
+    },
+    {
+      "id": "sunny-peaks",
+      "title": "Sunny Peaks",
+      "file": "sunny-peaks.jpg"
+    },
+    {
+      "id": "starry-night",
+      "title": "Starry Night",
+      "file": "starry-night.jpg"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+Brand wordmarks used only to identify the installed applications on this TV.
+Netflix: https://commons.wikimedia.org/wiki/File:Netflix_2015_logo.svg
+YouTube: https://commons.wikimedia.org/wiki/File:YouTube_Logo_2017.svg
+Prime Video: https://commons.wikimedia.org/wiki/File:Amazon_Prime_Video_logo.svg
+The Prime Video paths are displayed in white for the blue application card.
+Company names and logos remain trademarks of their respective owners.

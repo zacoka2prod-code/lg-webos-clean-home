@@ -1,0 +1,21 @@
+{
+  "id": "org.webosbrew.lounge.launcher",
+  "version": "0.0.120",
+  "vendor": "webOS Homebrew",
+  "type": "web",
+  "main": "index.html",
+  "title": "ZKP Clean Home",
+  "icon": "assets/icon-80-v8.png",
+  "miniicon": "assets/icon-60-v8.png",
+  "largeIcon": "assets/icon-130-v8.png",
+  "iconColor": "#0f3d4a",
+  "uiRevision": 2,
+  "disableBackHistoryAPI": true,
+  "appDescription": "Accueil webOS avec grandes tuiles, toutes les applications et météo.",
+  "requiredPermissions": [
+    "network.operation",
+    "network.query",
+    "activities.operation",
+    "services.blegacy"
+  ]
+}

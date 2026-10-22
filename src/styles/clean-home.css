@@ -1,0 +1,59 @@
+/* Layout adapted from Gathin's CleanYourTV (MIT); see assets/fonts/CleanYourTV-LICENSE.txt. */
+@font-face { font-family: "Clean Outfit"; src: url("../assets/fonts/clean-outfit-light.ttf") format("truetype"); font-weight: 300; }
+@font-face { font-family: "Clean Outfit"; src: url("../assets/fonts/clean-outfit-regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "Clean Outfit"; src: url("../assets/fonts/clean-outfit-semibold.ttf") format("truetype"); font-weight: 600; }
+
+body.c9-clean { background: #000; color: #fff; font-family: "Clean Outfit", "Segoe UI", sans-serif; }
+body.c9-clean button { font-family: inherit; }
+body.c9-clean #background-layer { background: #000 !important; animation: none !important; transform: none !important; transition: none; }
+body.c9-clean #scrim, body.c9-clean #dim { display: none; }
+#clean-ambient { position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; }
+
+body.c9-clean .top-bar { position: absolute; top: 0; left: 0; width: 100%; height: 210px; min-height: 0; padding: 0; z-index: 10; }
+body.c9-clean .clock-stack { top: 52px; left: 118px; right: auto; max-width: 880px; transform: none; text-align: left; }
+.clean-greeting { margin: 0 0 16px 5px; font-size: 23px; font-weight: 400; letter-spacing: 5px; color: rgba(255,255,255,.58); }
+.clean-clock-row { display: flex; align-items: center; }
+body.c9-clean .clock { font-size: 100px; font-weight: 300; line-height: 1; letter-spacing: -4px; }
+body.c9-clean .clock-date { margin: 18px 0 0 32px; padding-left: 32px; max-width: 490px; border-left: 1px solid rgba(255,255,255,.25); font-size: 22px; line-height: 42px; letter-spacing: 3px; font-weight: 400; text-transform: uppercase; white-space: nowrap; }
+body.c9-clean .top-actions { top: 116px; right: 112px; display: flex; align-items: center; gap: 0; }
+body.c9-clean .top-actions > button + button { margin-left: 18px; }
+body.c9-clean .clean-pill { width: auto; height: 78px; min-width: 204px; border: 1px solid rgba(255,255,255,.24); border-radius: 42px; display: flex; align-items: center; justify-content: center; padding: 0 28px; color: #fff; background: linear-gradient(to bottom,rgba(255,255,255,.18),rgba(255,255,255,.08)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); -webkit-backdrop-filter: none; backdrop-filter: none; font-size: 28px; font-weight: 400; }
+body.c9-clean .clean-pill svg { width: 36px; height: 36px; margin-right: 14px; flex: 0 0 auto; }
+body.c9-clean .clean-pill.focused { outline: 0; box-shadow: 0 0 0 3px rgba(255,255,255,.8),0 0 0 8px rgba(255,255,255,.10); transform: scale(1.035); }
+body.c9-clean .settings-icon-glyph { margin: 0 14px 0 0; }
+
+body.c9-clean .weather-panel { top: 238px; right: 112px; left: auto; border-radius: 24px; background: rgba(14,16,23,.75); border: 1px solid rgba(255,255,255,.11); box-shadow: none; transition: opacity .16s; }
+body.c9-clean .weather-place { font-size: 20px; font-weight: 400; }
+body.c9-clean .weather-now { font-family: inherit; font-weight: 300; }
+body.c9-clean .weather-day-label { font-family: inherit; font-size: 17px; letter-spacing: 1px; }
+body.c9-clean .weather-today-detail { font-size: 17px; }
+body.c9-clean.clean-grid-browsing .weather-panel, body.c9-clean.clean-inputs-open .weather-panel { opacity: 0; pointer-events: none; }
+
+.clean-shelf { position: absolute; z-index: 2; top: 520px; left: 132px; right: 134px; display: flex; align-items: baseline; justify-content: space-between; pointer-events: none; transition: opacity .16s; }
+.clean-shelf-title { font-size: 88px; font-weight: 300; line-height: 1.15; letter-spacing: -2px; max-width: 1120px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.clean-app-count { color: rgba(255,255,255,.46); font-size: 20px; font-weight: 300; white-space: nowrap; }
+body.clean-grid-browsing .clean-shelf { opacity: 0; }
+
+body.c9-clean .launcher { position: absolute; top: 210px; left: 0; right: 0; bottom: 0; width: 100%; height: auto; padding: 0; display: block; z-index: 3; }
+body.c9-clean #app-grid-shell { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; max-width: none !important; padding: 470px 0 96px; margin: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+body.c9-clean #app-grid-shell::-webkit-scrollbar { display: none; }
+body.c9-clean #app-grid { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; width: 1680px; max-width: none; padding: 20px 0 0; margin: 0 auto; }
+body.c9-clean #app-grid::before { content: ""; position: absolute; top: 0; left: 4px; right: 4px; height: 246px; border: 1px solid rgba(255,255,255,.13); border-radius: 42px; background: rgba(25,25,29,.74); pointer-events: none; }
+body.c9-clean #app-grid > .app-tile { position: relative; flex: 0 0 auto; width: 360px; height: 202px; padding: 0; margin: 0 30px 106px; border: none; border-radius: 27px; background: #23242b; color: #fff; overflow: visible; display: block; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; transform: none; transition: transform .13s ease-out; }
+body.c9-clean #app-grid > .app-tile.focused { transform: scale(1.075); outline: 0; box-shadow: none; z-index: 2; }
+body.c9-clean #app-grid .app-icon { position: absolute; width: 96px; height: 96px; top: 30px; left: 132px; margin: 0; border-radius: 16px; object-fit: contain; box-shadow: none; }
+body.c9-clean #app-grid .app-fallback { position: absolute; top: 34px; left: 134px; width: 92px; height: 92px; margin: 0; font-size: 40px; border-radius: 16px; box-shadow: none; }
+body.c9-clean #app-grid .app-label { position: absolute; left: 18px; right: 18px; bottom: 20px; max-width: none; margin: 0; display: block; font-size: 24px; line-height: 1.15; text-align: center; font-weight: 400; opacity: 1; }
+body.c9-clean #app-grid .clean-banner .app-icon { top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 27px; }
+body.c9-clean #app-grid .clean-wordmark .app-icon { top: 20%; left: 11%; width: 78%; height: 60%; object-fit: contain; border-radius: 0; }
+body.c9-clean #app-grid .clean-banner .app-label { top: 100%; bottom: auto; left: -10px; right: -10px; margin-top: 22px; opacity: 0; font-size: 24px; }
+body.c9-clean #app-grid .clean-banner.focused:not(.clean-dock-tile) .app-label { opacity: 1; }
+body.c9-clean #app-grid .settings-tile { background: #282b34; }
+.clean-focus { position: absolute; top: 0; left: 0; z-index: 8; pointer-events: none; border-radius: 34px; border: 2px solid rgba(255,255,255,.85); background: linear-gradient(to bottom,rgba(255,255,255,.14),rgba(255,255,255,.025)); box-shadow: 0 0 0 5px rgba(255,255,255,.12),0 0 18px rgba(255,255,255,.16); transition: transform .13s ease-out,width .13s ease-out,height .13s ease-out; }
+.clean-focus[hidden], body.settings-open .clean-focus { display: none; }
+
+.clean-inputs-panel { position: absolute; top: 218px; right: 112px; width: 650px; padding: 22px; border: 1px solid rgba(255,255,255,.20); border-radius: 28px; background: #15161d; box-shadow: 0 22px 60px rgba(0,0,0,.5); z-index: 12; }
+.clean-inputs-panel[hidden] { display: none; }
+body.c9-clean #input-row { position: static; display: flex; flex-wrap: wrap; justify-content: flex-start; padding: 0; margin: 0; }
+body.c9-clean #input-row .input-chip { width: 280px; min-width: 0; margin: 10px; font-size: 24px; padding: 18px; border-radius: 18px; background: #292b36; }
+body.c9-clean .app-scroll-edge, body.c9-clean #music-bar, body.c9-clean .channel-strip { display: none !important; }

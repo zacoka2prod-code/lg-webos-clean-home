@@ -1,0 +1,3017 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "LG Smart UI", "Miso", "Segoe UI", sans-serif;
+  color: #f4f0eb;
+  background: #08080c;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#background-layer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(135deg, #1a1028 0%, #3d1f2e 40%, #7a3b2e 100%);
+  background-size: cover;
+  background-position: center;
+  transition: background-image 1.2s ease;
+  /* Never steal clicks meant for the settings gear / dock. */
+  pointer-events: none;
+}
+
+#background-layer.has-image.ken-burns {
+  animation: ken-burns 45s ease-in-out infinite alternate;
+  /* Own GPU layer, so the zoom runs on the compositor, not the main thread. */
+  will-change: transform;
+}
+
+/* Transform only. Also animating background-position repainted the whole 4K
+   photo on the main thread every frame, so the zoom stuttered on the TV.
+   The drift stays well inside the 6% the scale adds on each edge. */
+@keyframes ken-burns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.12) translate(-1%, 1%);
+  }
+}
+
+/* Aerial clips: a <video> fills the background layer, under the scrim. */
+.background-video {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #0a0a0f;
+}
+
+#background-layer.gradient-animated {
+  animation: gradient-hue-shift 40s linear infinite;
+}
+
+@keyframes gradient-hue-shift {
+  0% {
+    filter: hue-rotate(0deg) saturate(1);
+  }
+  50% {
+    filter: hue-rotate(180deg) saturate(1.3);
+  }
+  100% {
+    filter: hue-rotate(360deg) saturate(1);
+  }
+}
+
+/* Glass colour (Settings -> Look -> Glass colour) of the see-through app
+   tiles, input chips and Settings button. Light is the original look;
+   body.glass-<tint> (main.js applyGlassTint) picks another. Soft = the
+   fainter TV Settings tile. */
+:root {
+  /* Focus colour (Settings -> Look -> Focus colour): the ring around what the
+     remote is on (ring, glow, halo) and the current-input marker (active).
+     Warm is the original look. */
+  --focus-ring-rgb: 255, 255, 255;
+  --focus-glow-rgb: 255, 200, 150;
+  --focus-halo-rgb: 255, 190, 130;
+  --active-rgb: 255, 214, 170;
+  --active-deep-rgb: 255, 170, 120;
+  /* Glass border (Settings -> Look -> Glass border): the outline and the
+     thin shine along the top edge. White is the original look. */
+  --glass-edge-rgb: 255, 255, 255;
+  --glass-edge: 0.16;
+  --glass-edge-strong: 0.22;
+  --glass-shine: 0.28;
+  --glass-rgb: 255, 255, 255;
+  --glass-top: 0.22;
+  --glass-bottom: 0.06;
+  --glass-soft-top: 0.12;
+  --glass-soft-bottom: 0.03;
+}
+
+body.glass-dark, .glass-preview.glass-dark {
+  --glass-rgb: 16, 18, 26;
+  --glass-top: 0.62;
+  --glass-bottom: 0.44;
+  --glass-soft-top: 0.5;
+  --glass-soft-bottom: 0.34;
+}
+
+body.glass-black, .glass-preview.glass-black {
+  --glass-rgb: 0, 0, 0;
+  --glass-top: 0.74;
+  --glass-bottom: 0.58;
+  --glass-soft-top: 0.62;
+  --glass-soft-bottom: 0.46;
+}
+
+body.glass-blue, .glass-preview.glass-blue,
+body.glass-purple, .glass-preview.glass-purple,
+body.glass-green, .glass-preview.glass-green,
+body.glass-warm, .glass-preview.glass-warm {
+  --glass-top: 0.58;
+  --glass-bottom: 0.4;
+  --glass-soft-top: 0.46;
+  --glass-soft-bottom: 0.3;
+}
+
+body.glass-blue, .glass-preview.glass-blue { --glass-rgb: 28, 62, 128; }
+body.glass-purple, .glass-preview.glass-purple { --glass-rgb: 70, 38, 126; }
+body.glass-green, .glass-preview.glass-green { --glass-rgb: 22, 90, 70; }
+body.glass-warm, .glass-preview.glass-warm { --glass-rgb: 126, 70, 28; }
+
+/* Glass border: body.glass-border-, .glass-preview.glass-border-<colour> (main.js applyGlassTint). */
+body.glass-border-none, .glass-preview.glass-border-none {
+  --glass-edge: 0;
+  --glass-edge-strong: 0;
+  --glass-shine: 0;
+}
+
+body.glass-border-glass, .glass-preview.glass-border-glass,
+body.glass-border-black, .glass-preview.glass-border-black,
+body.glass-border-blue, .glass-preview.glass-border-blue,
+body.glass-border-purple, .glass-preview.glass-border-purple,
+body.glass-border-green, .glass-preview.glass-border-green,
+body.glass-border-warm, .glass-preview.glass-border-warm,
+body.glass-border-gold, .glass-preview.glass-border-gold {
+  --glass-edge: 0.8;
+  --glass-edge-strong: 0.85;
+  --glass-shine: 0.35;
+}
+
+/* Same colour as the glass, only stronger. */
+body.glass-border-glass, .glass-preview.glass-border-glass { --glass-edge-rgb: var(--glass-rgb); }
+body.glass-border-black, .glass-preview.glass-border-black { --glass-edge-rgb: 0, 0, 0; --glass-shine: 0; }
+body.glass-border-blue, .glass-preview.glass-border-blue { --glass-edge-rgb: 110, 160, 255; }
+body.glass-border-purple, .glass-preview.glass-border-purple { --glass-edge-rgb: 176, 136, 255; }
+body.glass-border-green, .glass-preview.glass-border-green { --glass-edge-rgb: 110, 220, 170; }
+body.glass-border-warm, .glass-preview.glass-border-warm { --glass-edge-rgb: 255, 176, 110; }
+body.glass-border-gold, .glass-preview.glass-border-gold { --glass-edge-rgb: 240, 200, 110; }
+
+/* Focus colour: body.focus-<colour> (main.js applyGlassTint). The whole
+   highlight takes the colour; "border" follows Glass border. */
+body.focus-white, .glass-preview.focus-white { --focus-rgb: 255, 255, 255; }
+body.focus-border, .glass-preview.focus-border { --focus-rgb: var(--glass-edge-rgb); }
+body.focus-blue, .glass-preview.focus-blue { --focus-rgb: 110, 160, 255; }
+body.focus-purple, .glass-preview.focus-purple { --focus-rgb: 176, 136, 255; }
+body.focus-green, .glass-preview.focus-green { --focus-rgb: 110, 220, 170; }
+body.focus-gold, .glass-preview.focus-gold { --focus-rgb: 240, 200, 110; }
+
+body.focus-white, .glass-preview.focus-white,
+body.focus-border, .glass-preview.focus-border,
+body.focus-blue, .glass-preview.focus-blue,
+body.focus-purple, .glass-preview.focus-purple,
+body.focus-green, .glass-preview.focus-green,
+body.focus-gold, .glass-preview.focus-gold {
+  --focus-ring-rgb: var(--focus-rgb);
+  --focus-glow-rgb: var(--focus-rgb);
+  --focus-halo-rgb: var(--focus-rgb);
+  --active-rgb: var(--focus-rgb);
+  --active-deep-rgb: var(--focus-rgb);
+}
+
+/* Settings -> Look -> Glass: a sample of the tiles and buttons over the
+   wallpaper, in the choices on screen before Save (classes set in
+   settings.js; the presets above match .glass-preview too). It starts from
+   the original look so the page's own choice doesn't leak in. */
+.glass-preview {
+  /* Focus colour (Settings -> Look -> Focus colour): the ring around what the
+     remote is on (ring, glow, halo) and the current-input marker (active).
+     Warm is the original look. */
+  --focus-ring-rgb: 255, 255, 255;
+  --focus-glow-rgb: 255, 200, 150;
+  --focus-halo-rgb: 255, 190, 130;
+  --active-rgb: 255, 214, 170;
+  --active-deep-rgb: 255, 170, 120;
+  /* Glass border (Settings -> Look -> Glass border): the outline and the
+     thin shine along the top edge. White is the original look. */
+  --glass-edge-rgb: 255, 255, 255;
+  --glass-edge: 0.16;
+  --glass-edge-strong: 0.22;
+  --glass-shine: 0.28;
+  --glass-rgb: 255, 255, 255;
+  --glass-top: 0.22;
+  --glass-bottom: 0.06;
+  --glass-soft-top: 0.12;
+  --glass-soft-bottom: 0.03;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 24px;
+  margin: 10px 0 18px;
+  border-radius: 18px;
+  background-color: #1d2a3a;
+  background-size: cover;
+  background-position: center;
+}
+
+.glass-preview > * + * {
+  margin-left: 30px;
+}
+
+/* The home screen's scrim (#scrim), in the preview under the tiles. */
+.glass-preview {
+  position: relative;
+}
+
+.glass-preview > :not(.glass-preview-scrim):not(.glass-preview-dim) {
+  position: relative;
+  z-index: 1;
+}
+
+.glass-preview-dim {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+  border-radius: inherit;
+  background: #000;
+  pointer-events: none;
+}
+
+.glass-preview-scrim {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(8, 8, 12, 0) 0%, rgba(8, 8, 12, 0.35) 100%),
+    linear-gradient(to top, rgba(6, 8, 16, 0.92) 0%, rgba(6, 8, 16, 0.45) 26%, rgba(6, 8, 16, 0) 58%);
+  pointer-events: none;
+}
+
+.glass-preview .app-tile {
+  --tile-scale: 0.8;
+  cursor: default;
+}
+
+.glass-preview-inputs {
+  display: flex;
+  flex-direction: column;
+}
+
+.glass-preview-inputs > * + * {
+  margin-top: 14px;
+}
+
+.glass-preview .input-chip {
+  font-size: 20px;
+  padding: 10px 22px;
+  cursor: default;
+}
+
+/* A moving wallpaper (slow zoom, animated gradient) under frosted glass is
+   re-blurred every frame: 13 fps on a webOS 25 OLED, against 60 without the
+   blur. While it moves (bg-moving, set in background.js), tint the glass
+   instead, like .weather-panel. */
+body.bg-moving .app-tile,
+body.bg-moving .input-chip,
+body.bg-moving .settings-icon,
+body.bg-moving .music-meta,
+body.bg-moving .music-controls,
+body.bg-moving .voice-indicator {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: rgba(14, 14, 22, 0.38);
+}
+
+/* Another app's panel (e.g. LG Settings) has the remote while Launch Home stays
+   on screen underneath: hold the wallpaper still (setAppInactive in main.js). */
+body.app-inactive #background-layer.has-image.ken-burns,
+body.app-inactive #background-layer.gradient-animated,
+body.all-apps-open #background-layer.has-image.ken-burns,
+body.all-apps-open #background-layer.gradient-animated {
+  animation-play-state: paused;
+}
+
+/* Wallpaper dimming (Settings -> Look -> Glass): the whole picture, evenly. */
+#dim {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#scrim {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(8, 8, 12, 0) 0%, rgba(8, 8, 12, 0.35) 100%),
+    linear-gradient(to top, rgba(6, 8, 16, 0.92) 0%, rgba(6, 8, 16, 0.45) 26%, rgba(6, 8, 16, 0) 58%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.top-bar {
+  position: relative;
+  z-index: 5;
+  /* Fixed-height chrome so the centered clock never collides with the gear. */
+  min-height: 140px;
+  padding: 40px 64px 0;
+  /* Keep the gear above any animated background stacking quirks. */
+  isolation: isolate;
+}
+
+.top-actions {
+  position: absolute;
+  top: 40px;
+  right: 64px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 2;
+}
+
+/* Voice listening badge — mic + AI face, top-right while an assistant listens. */
+.voice-indicator {
+  position: relative;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 10px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(12, 28, 48, 0.82), rgba(36, 18, 56, 0.78));
+  border: 1px solid rgba(140, 210, 255, 0.35);
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  color: #eaf6ff;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.96);
+  /* Hide can ease out; show uses .instant for zero-delay first paint. */
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.voice-indicator.visible {
+  display: inline-flex;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* First paint on KEY_VOICE — skip transition so the mic is visible immediately. */
+.voice-indicator.visible.instant {
+  transition: none;
+}
+
+.voice-indicator[hidden] {
+  display: none !important;
+}
+
+.voice-indicator-glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: radial-gradient(circle at 30% 40%, rgba(90, 200, 255, 0.35), transparent 60%);
+  animation: voice-glow 1.6s ease-in-out infinite;
+  z-index: 0;
+}
+
+.voice-indicator-ai,
+.voice-indicator-mic {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.voice-indicator-ai {
+  color: #9fe8ff;
+}
+
+.voice-indicator-mic {
+  color: #fff;
+  background: linear-gradient(145deg, #4db7ff, #7b6cff);
+  box-shadow: 0 0 0 0 rgba(90, 180, 255, 0.55);
+  animation: voice-mic-pulse 1.35s ease-out infinite;
+}
+
+.voice-indicator-label {
+  position: relative;
+  z-index: 1;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.92);
+  padding-right: 4px;
+}
+
+@keyframes voice-mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(90, 180, 255, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(90, 180, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(90, 180, 255, 0);
+  }
+}
+
+@keyframes voice-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.settings-run-user {
+  margin: 8px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.settings-run-user::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.run-user-checking {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.run-user-root {
+  color: #7ee2a8;
+}
+
+.run-user-limited {
+  color: #f2c078;
+}
+
+.settings-icon {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  border: 1px solid rgba(var(--glass-edge-rgb), var(--glass-edge-strong));
+  background: linear-gradient(
+    160deg,
+    rgba(var(--glass-rgb), var(--glass-top)),
+    rgba(var(--glass-rgb), var(--glass-bottom))
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(var(--glass-edge-rgb), var(--glass-shine)),
+    inset 0 -1px 8px rgba(0, 0, 0, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  cursor: pointer;
+  /* Expand hit target slightly for Magic Remote pointer. */
+  position: relative;
+}
+
+.settings-icon::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  bottom: -12px;
+  left: -12px;
+}
+
+.settings-icon-glyph {
+  width: 34px;
+  height: 34px;
+  opacity: 0.92;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+}
+
+.settings-icon-img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.settings-icon.focused {
+  outline: none;
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 2px rgba(var(--focus-ring-rgb), 0.85),
+    0 0 0 5px rgba(var(--focus-glow-rgb), 0.5),
+    0 12px 34px rgba(0, 0, 0, 0.45),
+    0 0 30px rgba(var(--focus-halo-rgb), 0.3);
+}
+
+.clock-stack {
+  position: absolute;
+  top: 36px;
+  pointer-events: none;
+  z-index: 1;
+  max-width: calc(100% - 220px);
+}
+
+/* Position — driven by body.clock-left / .clock-center / .clock-center-middle / .clock-right */
+body.clock-center .clock-stack,
+.clock-stack {
+  left: 50%;
+  right: auto;
+  top: 36px;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+/* Centre top — explicit (same as default .clock-center). */
+body.clock-center .clock-stack {
+  left: 50%;
+  right: auto;
+  top: 36px;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+/* Centre middle — time + date in the middle of the screen. */
+body.clock-center-middle .clock-stack {
+  /* fixed so placement is vs the full TV viewport, not the short top-bar. */
+  position: fixed;
+  left: 50%;
+  right: auto;
+  top: 42%;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  max-width: min(90vw, 1200px);
+  z-index: 3;
+}
+
+body.clock-left .clock-stack {
+  left: 64px;
+  right: auto;
+  top: 36px;
+  transform: none;
+  text-align: left;
+  max-width: calc(100% - 280px);
+}
+
+body.clock-right .clock-stack {
+  /* Sit left of the settings gear so they never overlap. */
+  left: auto;
+  right: 160px;
+  top: 36px;
+  transform: none;
+  text-align: right;
+  max-width: calc(100% - 280px);
+}
+
+.clock {
+  font-weight: 200;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55);
+  opacity: 0.92;
+}
+
+.clock:empty {
+  display: none;
+}
+
+/* 12-hour clock: "PM" smaller than the time (clock-format.js). */
+.clock-ampm {
+  margin-left: 0.18em;
+  font-size: 0.38em;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.clock-date {
+  margin-top: 6px;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+  /* Same brightness as the time above it (it was 0.72: hard to read). */
+  opacity: 0.92;
+}
+
+.clock-date:empty {
+  display: none;
+}
+
+/* Size — driven by body.clock-size-small / medium / large / x-large / xx-large */
+body.clock-size-small .clock {
+  font-size: 36px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+body.clock-size-small .clock-date {
+  font-size: 18px;
+  margin-top: 2px;
+}
+
+body.clock-size-medium .clock {
+  font-size: 52px;
+  font-weight: 250;
+  letter-spacing: 0.05em;
+}
+
+body.clock-size-medium .clock-date {
+  font-size: 22px;
+  margin-top: 4px;
+}
+
+body.clock-size-large .clock,
+body:not(.clock-size-small):not(.clock-size-medium):not(.clock-size-x-large):not(.clock-size-xx-large) .clock {
+  font-size: 72px;
+}
+
+body.clock-size-large .clock-date,
+body:not(.clock-size-small):not(.clock-size-medium):not(.clock-size-x-large):not(.clock-size-xx-large) .clock-date {
+  font-size: 26px;
+}
+
+body.clock-size-x-large .clock {
+  font-size: 96px;
+  font-weight: 200;
+  letter-spacing: 0.06em;
+}
+
+body.clock-size-x-large .clock-date {
+  font-size: 32px;
+  margin-top: 8px;
+}
+
+body.clock-size-xx-large .clock {
+  font-size: 128px;
+  font-weight: 200;
+  letter-spacing: 0.05em;
+}
+
+body.clock-size-xx-large .clock-date {
+  font-size: 40px;
+  margin-top: 10px;
+}
+
+/* ─── Weather: today + 4 days (top-left, opposite the gear) ─────────────── */
+
+.weather-panel {
+  position: absolute;
+  top: 36px;
+  left: 64px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 12px 16px;
+  border-radius: 24px;
+  /* Tinted, not frosted: no backdrop blur to recompute over a zooming photo. */
+  background: linear-gradient(160deg, rgba(18, 22, 34, 0.64), rgba(10, 12, 20, 0.48));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.weather-panel[hidden] {
+  display: none;
+}
+
+/* Clock in the top-left: move the forecast right, clear of the gear. */
+body.clock-left .weather-panel {
+  left: auto;
+  right: 160px;
+}
+
+.weather-glyph {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.weather-today {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 216px;
+  padding: 0 20px 0 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* "Tokyo, Japan" — own line across the panel so the country always fits. */
+.weather-place {
+  max-width: 560px;
+  margin: 0 12px 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.weather-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.weather-today-head {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.weather-day-label {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.weather-today-main {
+  display: flex;
+  align-items: center;
+  margin: 6px 0 4px;
+}
+
+.weather-today-main .weather-glyph {
+  width: 64px;
+  height: 64px;
+}
+
+.weather-now {
+  margin-left: 12px;
+  font-size: 56px;
+  font-weight: 250;
+  line-height: 1;
+}
+
+.weather-today-detail {
+  display: flex;
+  flex-direction: column;
+  font-size: 17px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.weather-low {
+  opacity: 0.6;
+}
+
+.weather-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 88px;
+}
+
+.weather-day .weather-glyph {
+  width: 48px;
+  height: 48px;
+  margin: 8px 0 6px;
+}
+
+.weather-high {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.weather-day .weather-low {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.weather-rain {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  font-size: 15px;
+  color: #8fdcff;
+}
+
+.weather-day .weather-rain {
+  margin: 4px 0 0;
+}
+
+.weather-rain::before {
+  content: '';
+  margin-right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 0 50% 50% 50%;
+  transform: rotate(45deg);
+  background: #64d2ff;
+}
+
+.launcher {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: calc(100% - 140px);
+  /* Icons sit low (centered horizontally); room for bottom-right volume pill. */
+  padding: 0 72px 40px;
+}
+
+.launcher > * + * {
+  /* Inputs (HDMI / devices) sit closer to the app icon row. */
+  margin-top: 20px;
+}
+
+/* The lowest app row reaches under the music bar: lift it clear
+   (main.js updateMusicBarClearance). */
+body.music-bar-clear .launcher {
+  padding-bottom: 100px;
+}
+
+.launcher.icons-left .input-row,
+.launcher.icons-left .app-grid {
+  justify-content: flex-start;
+}
+
+.launcher.icons-center .input-row,
+.launcher.icons-center .app-grid {
+  justify-content: center;
+}
+
+.launcher.icons-right .input-row,
+.launcher.icons-right .app-grid {
+  justify-content: flex-end;
+}
+
+/* Shell holds the row + left/right “more icons” edges. */
+.app-grid-shell {
+  position: relative;
+  width: 100%;
+  /* Shared with tiles so edge badges can sit over the icon body. */
+  --tile-scale: 1;
+}
+
+/* Single horizontal row, capped to N icons; overflow scrolls left/right. */
+.launcher.layout-scroll .app-grid-shell {
+  margin-left: auto;
+  margin-right: auto;
+  /* max-width set in JS from icons-per-row */
+}
+
+.launcher.layout-scroll .app-grid {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 24px 8px;
+  /* Instant, not smooth: each frame of a smooth scroll moves every glass tile
+     and re-blurs them all, so the row-end press dropped 5 frames (1 instant). */
+  scrollbar-width: none;
+}
+
+.launcher.layout-scroll .app-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.launcher.layout-scroll .app-grid > * {
+  flex: 0 0 auto;
+}
+
+/* Stacked: icons wrap onto multiple rows. */
+.launcher.layout-wrap .app-grid {
+  flex-wrap: wrap;
+}
+
+.launcher.layout-wrap .app-scroll-edge {
+  display: none;
+}
+
+/*
+ * Subtle overflow hints: sit ON the first/last visible tiles (icon body),
+ * not floating outside the row. Small + slow so they don’t steal focus.
+ */
+.app-scroll-edge {
+  position: absolute;
+  /* Align to app-grid padding + icon body (above the title labels). */
+  top: 28px;
+  bottom: auto;
+  height: calc(100px * var(--tile-scale, 1));
+  width: 56px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  /* Shown and hidden instantly: a fade (or any motion) here sits over the
+     glass tiles, which then re-blur every frame (13 fps on a webOS 25 OLED). */
+  opacity: 0;
+}
+
+/* Just the disc: a dark gradient band behind it, over the edge tile's icon,
+   read as a smudge on that tile. */
+.app-scroll-edge-left {
+  left: 10px;
+  justify-content: flex-start;
+}
+
+.app-scroll-edge-right {
+  right: 10px;
+  justify-content: flex-end;
+}
+
+.app-grid-shell.can-scroll-left .app-scroll-edge-left,
+.app-grid-shell.can-scroll-right .app-scroll-edge-right {
+  opacity: 1;
+}
+
+/* Compact glass disc — quieter than the large badge. */
+.app-scroll-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: rgba(255, 232, 205, 0.92);
+  /* Solid tint, no backdrop blur: the badge animates, and a blur under a
+     moving element is recomputed every frame. */
+  background: linear-gradient(
+    155deg,
+    rgba(255, 236, 210, 0.28) 0%,
+    rgba(30, 24, 22, 0.72) 100%
+  );
+  border: 1px solid rgba(255, 214, 170, 0.4);
+  /* No drop shadow: it fell across the tile the disc sits over. */
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset;
+}
+
+.app-scroll-chevron-svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* No nudge animation: moving the badge over the glass tiles re-blurred them
+   every frame, dropping the whole screen to ~13 fps for 7 s each time the
+   hint appeared (on return to Launch Home and at the ends of the row). */
+
+body.perf-mode .app-scroll-badge {
+  animation: none !important;
+  opacity: 0.9;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: rgba(40, 32, 28, 0.75);
+}
+
+.input-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -8px;
+}
+
+.input-row > * {
+  margin: 8px;
+}
+
+.input-chip {
+  appearance: none;
+  border: 1px solid rgba(var(--glass-edge-rgb), var(--glass-edge-strong));
+  background: linear-gradient(160deg, rgba(var(--glass-rgb), var(--glass-top)), rgba(var(--glass-rgb), var(--glass-bottom)));
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: inherit;
+  font: inherit;
+  font-size: 22px;
+  padding: 14px 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(var(--glass-edge-rgb), var(--glass-shine)), 0 6px 18px rgba(0, 0, 0, 0.28);
+  /* Focus scales instantly, like .app-tile (animating it re-blurs the glass). */
+}
+
+/* Home -> Channels chip: Live TV's channels in a strip above the inputs.
+   No frosted glass here: a long strip of blurred chips is costly to redraw. */
+.channel-strip {
+  display: flex;
+  gap: 14px;
+  margin: 0 -8px 10px;
+  padding: 10px 8px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.channel-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* Centred while the chips fit; when they overflow, these margins collapse so
+   the first channels stay reachable by scrolling (plain justify-content:
+   center would push them off the left edge). */
+.channel-strip > :first-child {
+  margin-left: auto;
+}
+
+.channel-strip > :last-child {
+  margin-right: auto;
+}
+
+/* Line up with the inputs row, which follows the icon alignment setting. */
+.launcher.icons-left .channel-strip > :first-child {
+  margin-left: 0;
+}
+
+.launcher.icons-right .channel-strip > :last-child {
+  margin-right: 0;
+}
+
+/* The strip sits before the inputs row in the page; keep the inputs where
+   they were (the gap rule below would push them down even while it's hidden). */
+.launcher > .channel-strip + .input-row {
+  margin-top: -8px;
+}
+
+.channel-strip[hidden] {
+  display: none;
+}
+
+.channel-chip {
+  appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  max-width: 460px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(20, 22, 30, 0.72);
+  color: inherit;
+  font: inherit;
+  font-size: 20px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.channel-chip .channel-number {
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+
+.channel-chip .channel-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-chip-now {
+  border-color: rgba(var(--active-rgb), 0.55);
+}
+
+.channel-chip-now .channel-number {
+  color: #ffd6aa;
+  opacity: 1;
+}
+
+.input-chip.active {
+  background: linear-gradient(160deg, rgba(var(--active-rgb), 0.34), rgba(var(--active-deep-rgb), 0.14));
+  border-color: rgba(var(--active-rgb), 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 20px rgba(var(--active-deep-rgb), 0.22);
+}
+
+/* Home screen focus: Settings -> Look -> Focus colour. */
+.input-chip.focused,
+.channel-chip.focused,
+.app-tile.focused,
+.mute-btn.focused,
+.volume-slider.focused,
+.glass-preview .is-preview-focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(var(--focus-ring-rgb), 0.85),
+    0 0 0 5px rgba(var(--focus-glow-rgb), 0.55),
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    0 0 34px rgba(var(--focus-halo-rgb), 0.35);
+  transform: scale(1.05);
+}
+
+/* Settings keeps the warm focus on its dark panel, whatever Focus colour is. */
+.settings-close.focused,
+.settings-save.focused,
+.settings-mini-btn.focused,
+.settings-row.focusable.focused,
+.settings-app-row.focused,
+.settings-pinned-row.focusable.focused {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 0 0 5px rgba(255, 200, 150, 0.55),
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    0 0 34px rgba(255, 190, 130, 0.35);
+  transform: scale(1.05);
+}
+
+.app-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin: -14px;
+  padding-top: 8px;
+  --tile-scale: 1;
+}
+
+.app-grid > * {
+  margin: 14px;
+}
+
+.app-tile {
+  appearance: none;
+  /* Positioning context for the number-key badge (.app-key). */
+  position: relative;
+  border: 1px solid rgba(var(--glass-edge-rgb), var(--glass-edge));
+  background: linear-gradient(165deg, rgba(var(--glass-rgb), var(--glass-top)), rgba(var(--glass-rgb), var(--glass-bottom)));
+  /* Lighter blur (was 24px + saturate): cheaper on older TV GPUs. */
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: inherit;
+  width: calc(152px * var(--tile-scale, 1));
+  padding: calc(20px * var(--tile-scale, 1)) calc(12px * var(--tile-scale, 1)) calc(16px * var(--tile-scale, 1));
+  border-radius: calc(24px * var(--tile-scale, 1));
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: inset 0 1px 0 rgba(var(--glass-edge-rgb), var(--glass-shine)), 0 10px 30px rgba(0, 0, 0, 0.32);
+  /* No transition: focus scales instantly. Animating the scale re-blurred the
+     glass behind the tile every frame; on a webOS 25 OLED (drawn at 2x) that
+     dropped 3-6 frames and took up to 240 ms per D-pad press, against ~1 frame
+     and 24-40 ms without it (same as Performance mode). */
+}
+
+.app-tile > * + * {
+  margin-top: calc(14px * var(--tile-scale, 1));
+}
+
+.app-tile.settings-tile {
+  background: linear-gradient(165deg, rgba(var(--glass-rgb), var(--glass-soft-top)), rgba(var(--glass-rgb), var(--glass-soft-bottom)));
+}
+
+.app-icon {
+  width: calc(92px * var(--tile-scale, 1));
+  height: calc(92px * var(--tile-scale, 1));
+  border-radius: calc(20px * var(--tile-scale, 1));
+  object-fit: cover;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.app-fallback {
+  width: calc(92px * var(--tile-scale, 1));
+  height: calc(92px * var(--tile-scale, 1));
+  border-radius: calc(20px * var(--tile-scale, 1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(32px * var(--tile-scale, 1));
+  font-weight: 600;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* Number-key shortcut badge (home row): the key that opens this tile.
+   Absolutely positioned so it costs no layout and survives a focused tile's
+   scale; pointer-events off so it never eats the tile's click. */
+.app-key {
+  position: absolute;
+  top: calc(8px * var(--tile-scale, 1));
+  right: calc(10px * var(--tile-scale, 1));
+  margin: 0;
+  min-width: calc(24px * var(--tile-scale, 1));
+  height: calc(24px * var(--tile-scale, 1));
+  padding: 0 calc(6px * var(--tile-scale, 1));
+  border-radius: calc(12px * var(--tile-scale, 1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(15px * var(--tile-scale, 1));
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.app-label {
+  /* Block, with the tile's inner width as a fixed maximum (152px tile minus
+     2 x 12px padding): some webOS versions don't lay out a <button>'s children
+     as flex items, so the label stayed inline, max-width: 100% never applied,
+     and long names ran out of the tile (a webOS 9 TV after "Add all apps"). */
+  display: block;
+  min-width: 0;
+  font-size: calc(18px * var(--tile-scale, 1));
+  text-align: center;
+  max-width: calc(128px * var(--tile-scale, 1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+/* Compact bottom-right music dock — no full-width empty glass bar. */
+.music-bar {
+  position: absolute;
+  left: auto;
+  right: 40px;
+  bottom: 28px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: auto;
+  max-width: calc(100% - 80px);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.music-bar > * + * {
+  margin-left: 12px;
+}
+
+/* Track chip only when there is a title (avoids the empty red-bar strip). */
+.music-meta {
+  display: none;
+  align-items: center;
+  max-width: min(360px, 40vw);
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: linear-gradient(160deg, rgba(20, 22, 34, 0.72), rgba(10, 12, 20, 0.6));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 14px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Track title chip only when enabled in Settings AND a title is present. */
+.music-bar.show-bar.has-track .music-meta {
+  display: flex;
+}
+
+/* Hide entire music chrome when ambient music is off. */
+.music-bar.music-hidden {
+  display: none;
+}
+
+.music-icon {
+  font-size: 20px;
+  opacity: 0.7;
+  margin-right: 10px;
+  flex: 0 0 auto;
+}
+
+.track-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.music-controls {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 6px 12px 6px 6px;
+  border-radius: 999px;
+  background: linear-gradient(160deg, rgba(20, 22, 34, 0.78), rgba(10, 12, 20, 0.65));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 40px rgba(0, 0, 0, 0.4);
+}
+
+.music-controls > * + * {
+  margin-left: 12px;
+}
+
+.mute-btn svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+.mute-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 2px 8px rgba(0, 0, 0, 0.25);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  /* No transform transition: it sits on the blurred music controls, which
+     re-blur every frame while it scales (see .app-tile). */
+  transition: background 0.15s ease;
+}
+
+.mute-btn:active {
+  transform: scale(0.94);
+}
+
+.volume-slider {
+  --fill: 30%;
+  width: 180px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background-image: linear-gradient(to right, rgba(255, 214, 170, 0.95), rgba(255, 236, 214, 0.95) var(--fill), rgba(255, 255, 255, 0.14) var(--fill), rgba(255, 255, 255, 0.14) 100%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.volume-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.volume-slider::-moz-range-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(to right, rgba(255, 214, 170, 0.95), rgba(255, 236, 214, 0.95));
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(240, 232, 222, 0.85));
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 6px rgba(255, 214, 170, 0.14);
+  transition: box-shadow 0.15s ease;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(240, 232, 222, 0.85));
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.music-controls.pulsing {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 6px rgba(0, 0, 0, 0.2),
+    0 0 0 3px rgba(255, 214, 170, 0.55),
+    0 0 24px rgba(255, 214, 170, 0.35);
+  transition: box-shadow 0.15s ease;
+}
+
+/*
+ * Settings open mode (webOS-safe).
+ *
+ * Screengrab1 bug: dimming the home UI with opacity + glass/backdrop-filter
+ * on steppers made the panel background fail to composite. Result: mountain
+ * wallpaper bled through the left (labels only) while right-side controls
+ * still painted. Fix = solid full-screen modal, hide underlay completely,
+ * no backdrop-filter inside settings.
+ */
+body.settings-open #background-layer,
+body.settings-open #scrim,
+body.settings-open #dim,
+body.settings-open .top-bar,
+body.settings-open .launcher,
+body.settings-open .music-bar {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  animation: none !important;
+}
+
+body.settings-open #background-layer,
+body.settings-open #background-layer.has-image.ken-burns,
+body.settings-open #background-layer.gradient-animated {
+  filter: none !important;
+  transform: none !important;
+}
+
+body.settings-open .settings-panel .focused,
+body.settings-open .settings-panel .focusable {
+  transition: none !important;
+}
+
+/* Kill glass blur inside settings — it samples the (hidden) underlay and
+   leaves translucent holes on webOS. */
+body.settings-open .settings-panel,
+body.settings-open .settings-panel * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.settings-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0;
+  /* Fully opaque solid fill — no alpha, no blur, no partial composite. */
+  background-color: #14141c;
+  background-image: none;
+  color: #f4f0eb;
+  border: none;
+  box-shadow: none;
+  opacity: 1;
+}
+
+.settings-panel[hidden] {
+  display: none !important;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 64px 64px 48px;
+  background-color: #14141c;
+  color: #f4f0eb;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(255, 255, 255, 0.38) rgba(255, 255, 255, 0.08);
+}
+
+.settings-header {
+  background-color: #14141c;
+}
+
+/* Settings: category list on the left, the chosen category's settings on the
+   right (.settings-body scrolls; the list stays put). */
+.settings-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.settings-nav {
+  flex: 0 0 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 20px 24px 40px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.settings-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 20px 12px 26px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  text-align: left;
+  cursor: pointer;
+  /* Instant chrome: no ease delay on the remote. */
+  transition: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.settings-tab-label {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.settings-tab-sub {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+/* Active = whose settings are showing. Quiet, not "focused". */
+.settings-tab.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-tab.active .settings-tab-sub {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.settings-tab.active::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 2px;
+  background: #ffd6aa;
+}
+
+/* Focused = the remote is on this category. */
+.settings-tab.focusable.focused {
+  color: #fff;
+  background: linear-gradient(135deg, #3a7bd5, #6b5bff);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 0 0 2px rgba(100, 160, 255, 0.45),
+    0 8px 20px rgba(40, 80, 200, 0.4);
+}
+
+.settings-tab.focusable.focused .settings-tab-sub {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.settings-tab.focusable.focused::before {
+  display: none;
+}
+
+/* Stack panes: inactive stays laid out but non-interactive so Left/Right
+   only flips is-active (no display:none reflow of the Home photo/app tree). */
+.settings-tab-panes {
+  position: relative;
+}
+
+.settings-tab-pane {
+  display: block;
+}
+
+.settings-tab-pane:not(.is-active) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+  /* Keep out of scroll height calculation for the active pane */
+  height: 0;
+  overflow: hidden;
+}
+
+.settings-tab-pane.is-active {
+  position: relative;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+  height: auto;
+  overflow: visible;
+}
+
+.settings-tab-pane[hidden] {
+  display: none !important;
+}
+
+.ai-provider-pick {
+  display: flex;
+  gap: 14px;
+  margin: 4px 0 12px;
+  flex-wrap: wrap;
+}
+
+.ai-provider-card {
+  flex: 1 1 28%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  min-width: 240px;
+  min-height: 108px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: #1c1c28;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-provider-card-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
+.ai-provider-card-sub {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: rgba(244, 240, 235, 0.68);
+}
+
+.ai-provider-card.is-selected {
+  border-color: rgba(255, 214, 170, 0.9);
+  background: #2a2430;
+  box-shadow: 0 0 0 2px rgba(255, 214, 170, 0.28);
+}
+
+.ai-provider-card.is-selected .ai-provider-card-name {
+  color: #ffd6aa;
+}
+
+body.settings-open .settings-panel .ai-provider-card.focused {
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 0 0 2px rgba(100, 160, 255, 0.45),
+    0 8px 20px rgba(40, 80, 200, 0.4);
+}
+
+.settings-panel .ai-key-inactive {
+  opacity: 0.55;
+}
+
+.ai-status-line {
+  font-size: 22px !important;
+  font-weight: 600;
+  margin-bottom: 8px !important;
+}
+
+.ai-status-ok {
+  color: #7ee2a8 !important;
+}
+
+.ai-status-warn {
+  color: #f2c078 !important;
+}
+
+.settings-key-row {
+  align-items: flex-start;
+}
+
+.settings-key-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 62%;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.settings-key-controls .settings-text {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+}
+
+.settings-howto {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  line-height: 1.55;
+  font-size: 16px;
+  word-break: break-word;
+}
+
+.settings-howto code {
+  display: block;
+  margin: 8px 0 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 20px;
+  line-height: 1.45;
+  color: #c8e6ff;
+  white-space: pre-wrap;
+}
+
+.ai-credit-banner {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(160, 36, 28, 0.38);
+  border: 1px solid rgba(255, 150, 110, 0.5);
+  color: #ffd4c8;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.ai-status-err {
+  color: #ffb4a2 !important;
+}
+
+.ai-oauth-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: rgba(8, 8, 12, 0.82);
+  pointer-events: auto;
+}
+
+.ai-oauth-modal[hidden] {
+  display: none !important;
+}
+
+.ai-oauth-modal-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 92%;
+  padding: 32px 40px 28px;
+  background: #1c1c28;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 24px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.ai-oauth-modal-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: #ffd6aa;
+}
+
+.ai-oauth-modal-hint {
+  margin: 0;
+  max-width: 520px;
+  text-align: center;
+}
+
+.ai-oauth-qr-wrap {
+  flex: 0 0 auto;
+  padding: 18px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  user-select: none;
+}
+
+.ai-oauth-qr-wrap[hidden] {
+  display: none !important;
+}
+
+.ai-oauth-qr-wrap svg {
+  display: block;
+  width: 320px;
+  height: 320px;
+  pointer-events: none;
+}
+
+/* Settings -> TV check: summary text beside its QR code (scan to share). */
+/* Settings -> Pinned apps: an app this TV doesn't have (hidden on the home row). */
+.settings-pinned-row.is-missing .settings-pinned-title,
+.settings-pinned-row.is-missing .settings-app-icon {
+  opacity: 0.55;
+}
+
+/* Settings -> Backup & restore: its two buttons side by side. */
+.settings-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.tv-check-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #1c1c28;
+}
+
+.tv-check-result[hidden] {
+  display: none;
+}
+
+.tv-check-report {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font: 16px/1.4 monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #f4f0eb;
+}
+
+.tv-check-qr svg {
+  display: block;
+  width: 420px;
+  height: 420px;
+  border-radius: 10px;
+  background: #fff;
+  pointer-events: none;
+}
+
+.ai-oauth-pending {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin: 10px 0 14px;
+}
+
+.ai-oauth-pending-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-oauth-code {
+  margin: 8px 0 6px;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #9fd4ff;
+  line-height: 1.1;
+}
+
+.ai-oauth-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 6px;
+}
+
+.ai-using-badge {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.ai-using-badge.is-supergrok {
+  background: rgba(46, 140, 90, 0.38);
+  border: 1px solid rgba(126, 226, 168, 0.55);
+  color: #c8f5d8;
+}
+
+.ai-using-badge.is-apikey {
+  background: rgba(50, 90, 160, 0.38);
+  border: 1px solid rgba(140, 180, 255, 0.5);
+  color: #c8dcff;
+}
+
+.ai-using-badge.is-warn {
+  background: rgba(140, 90, 28, 0.4);
+  border: 1px solid rgba(242, 192, 120, 0.55);
+  color: #ffe2b0;
+}
+
+.settings-panel .settings-mini-btn.btn-tone-ok {
+  background: #1e4d38;
+  border-color: rgba(126, 226, 168, 0.65);
+  color: #d4ffe4;
+}
+
+.settings-panel .settings-mini-btn.btn-tone-warn {
+  background: #4a3818;
+  border-color: rgba(242, 192, 120, 0.65);
+  color: #ffe2b0;
+}
+
+.settings-panel .settings-mini-btn.btn-tone-danger {
+  background: #5a2420;
+  border-color: rgba(255, 150, 130, 0.65);
+  color: #ffd4c8;
+}
+
+.settings-panel .settings-mini-btn.btn-tone-quiet {
+  background: #252530;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(244, 240, 235, 0.72);
+}
+
+.settings-loading {
+  margin-top: 32px;
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Solid (non-glass) controls inside settings so rows paint fully. */
+.settings-panel .option-stepper {
+  background: #2a2a38;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.settings-panel .settings-text,
+.settings-panel .settings-textarea,
+.settings-panel .settings-close,
+.settings-panel .settings-save,
+.settings-panel .settings-mini-btn {
+  background: #2a2a38;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f4f0eb;
+}
+
+/* Rows carry the highlight's padding at all times (same 14px footprint as
+   before) so moving the highlight never changes row height — that reflowed
+   the whole panel on every D-pad step. */
+.settings-panel .settings-row {
+  background: transparent;
+  color: #f4f0eb;
+  padding: 6px 14px;
+  margin: 0 -14px 2px;
+  border-radius: 14px;
+}
+
+/* Readonly until Select — must not look disabled while D-pad focusing. */
+.settings-panel input[readonly],
+.settings-panel textarea[readonly] {
+  opacity: 1;
+  color: #f4f0eb;
+  -webkit-text-fill-color: #f4f0eb;
+  cursor: pointer;
+}
+
+.settings-panel input:not([readonly]):focus,
+.settings-panel textarea:not([readonly]):focus {
+  border-color: rgba(255, 214, 170, 0.75);
+  box-shadow: 0 0 0 2px rgba(255, 200, 150, 0.35);
+}
+
+.settings-body::-webkit-scrollbar {
+  width: 22px;
+}
+
+.settings-body::-webkit-scrollbar-track {
+  margin: 12px 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-body::-webkit-scrollbar-thumb {
+  min-height: 72px;
+  border: 4px solid transparent;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.38);
+  background-clip: padding-box;
+}
+
+.settings-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 214, 170, 0.55);
+  background-clip: padding-box;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 36px 64px 24px 64px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #14141c;
+  color: #f4f0eb;
+}
+
+.settings-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.settings-header-actions > * + * {
+  margin-left: 12px;
+}
+
+.settings-header-title h2 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+  max-width: 1200px;
+}
+
+.settings-version {
+  margin: 6px 0 0;
+  font-size: 18px;
+  font-weight: 400;
+  opacity: 0.55;
+  letter-spacing: 0.03em;
+}
+
+.settings-section {
+  margin-bottom: 28px;
+}
+
+.settings-section h3 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  font-weight: 500;
+  color: #ffd6aa;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-size: 22px;
+}
+
+/*
+ * Author `display: flex/block` rules beat the UA stylesheet's
+ * `[hidden] { display: none }`, so Gradient / USB / Photo rows stayed visible
+ * (and still "filled out") after switching Source. Force-hide inside settings.
+ */
+.settings-panel [hidden] {
+  display: none !important;
+}
+
+/* Larger hit/target for Magic Remote + 10-foot UI. */
+.settings-panel input[type='checkbox'] {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #ffd6aa;
+  -webkit-appearance: checkbox;
+  appearance: auto;
+}
+
+.settings-row input[type='range'] {
+  width: 220px;
+  height: 40px;
+  padding: 10px 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-row input[type='range']::-webkit-slider-runnable-track {
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.settings-row input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -7px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 214, 170, 0.8);
+  background: #f4f0eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.settings-row select,
+.settings-text,
+.settings-close,
+.settings-save {
+  font: inherit;
+  font-size: 20px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+}
+
+.option-stepper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 320px;
+  max-width: 440px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.05)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 8px rgba(0, 0, 0, 0.2),
+    0 6px 20px rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.option-stepper .stepper-arrow {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 26px;
+  line-height: 1;
+  color: #ffd6aa;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: opacity 0.15s ease;
+}
+
+.option-stepper .stepper-arrow.is-disabled {
+  opacity: 0.25;
+}
+
+.option-stepper .stepper-label {
+  flex: 1 1 auto;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-stepper.focused {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 0 0 5px rgba(255, 200, 150, 0.55),
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    0 0 34px rgba(255, 190, 130, 0.35);
+  transform: scale(1.04);
+}
+
+/*
+ * Settings scroll highlight: whole row lights up while D-pad/wheel moves
+ * through options (not only a tiny focus ring on the control).
+ */
+.settings-panel .settings-row-highlight {
+  position: relative;
+  z-index: 2;
+  border-radius: 14px;
+  background: rgba(255, 200, 150, 0.16) !important;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.75),
+    0 0 0 5px rgba(255, 200, 150, 0.45),
+    0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.settings-panel .settings-track-row.settings-row-highlight,
+.settings-panel .settings-app-row.settings-row-highlight,
+.settings-panel .settings-pinned-row.settings-row-highlight,
+.settings-panel .settings-input-row.settings-row-highlight {
+  background: rgba(255, 200, 150, 0.2) !important;
+}
+
+/* Any focused control inside settings gets a clear gold ring. */
+.settings-panel .focusable.focused {
+  outline: none;
+}
+
+.settings-panel input[type='checkbox'].focusable.focused {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 5px rgba(255, 200, 150, 0.55),
+    0 0 18px rgba(255, 190, 130, 0.45);
+  transform: scale(1.15);
+}
+
+.settings-panel input[type='range'].focusable.focused {
+  filter: drop-shadow(0 0 8px rgba(255, 200, 150, 0.65));
+}
+
+.settings-panel .settings-text.focused,
+.settings-panel .settings-textarea.focused {
+  border-color: rgba(255, 214, 170, 0.85);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.75),
+    0 0 0 5px rgba(255, 200, 150, 0.45);
+}
+
+.settings-save {
+  background: rgba(255, 214, 170, 0.2);
+  border-color: rgba(255, 214, 170, 0.4);
+  min-width: 120px;
+}
+
+.settings-text {
+  min-width: 360px;
+  max-width: 520px;
+}
+
+/* Type-ahead matches under a text field (Weather → Change location). */
+.settings-suggestions {
+  width: 520px;
+  margin: -4px 0 12px auto;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #1c1c28;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.settings-suggestion {
+  display: block;
+  width: 100%;
+  padding: 12px 18px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: #f4f0eb;
+  font: inherit;
+  font-size: 20px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.settings-suggestion:first-child {
+  border-top: 0;
+}
+
+.settings-suggestion strong {
+  color: #ffd6aa;
+  font-weight: 700;
+}
+
+.settings-panel .settings-suggestion.focused {
+  background: rgba(255, 200, 150, 0.2);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.settings-block {
+  margin-bottom: 14px;
+}
+
+.settings-block-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 22px;
+}
+
+/* Online background photo gallery (Settings → Source → Online URL). */
+.photo-picker-block {
+  margin-top: 6px;
+  margin-bottom: 18px;
+}
+
+.photo-picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.photo-picker-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  width: 200px;
+  height: 124px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #2a2a38;
+  color: #f4f0eb;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  /* div role=button — keep TV remote Select from leaving a text caret */
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.photo-picker-tile .photo-picker-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #1c1c28;
+}
+
+.photo-picker-tile.photo-picker-thumb-failed .photo-picker-thumb {
+  opacity: 0.25;
+}
+
+.photo-picker-caption {
+  position: relative;
+  z-index: 1;
+  padding: 10px 12px 12px;
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 500;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.35) 70%,
+    transparent 100%
+  );
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.photo-picker-custom {
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #2e2e42, #1e1e2c);
+  border-style: dashed;
+}
+
+.photo-picker-custom .photo-picker-caption {
+  position: static;
+  background: none;
+  padding: 0 12px 4px;
+  font-size: 18px;
+  color: #ffd6aa;
+  white-space: normal;
+  text-align: center;
+}
+
+.photo-picker-custom-hint {
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
+  opacity: 0.65;
+  text-align: center;
+  padding: 0 12px;
+}
+
+/* Aerial clips (Apple): title-only tiles — the clips stream from Apple's CDN,
+   so there are no packaged thumbnails to show. */
+.aerial-picker-grid .photo-picker-tile-text {
+  align-items: center;
+  justify-content: center;
+  height: 66px;
+}
+
+.aerial-picker-grid .photo-picker-tile-text .photo-picker-caption {
+  position: static;
+  background: none;
+  padding: 8px 12px;
+  font-size: 15px;
+  white-space: normal;
+  text-align: center;
+}
+
+/* Chosen wallpaper — stays visible after focus moves (scroll up/down). */
+.photo-picker-tile.is-selected {
+  border-color: rgba(255, 214, 170, 1);
+  box-shadow:
+    0 0 0 3px rgba(255, 214, 170, 0.85),
+    0 0 0 6px rgba(255, 180, 100, 0.35),
+    0 10px 28px rgba(0, 0, 0, 0.4),
+    0 0 28px rgba(255, 190, 120, 0.35);
+  z-index: 1;
+}
+
+.photo-picker-tile.is-selected::after {
+  content: '\2713';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  color: #1a1410;
+  background: linear-gradient(145deg, #ffe7c8, #ffc080);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+/* Browse focus (current tile under the remote) — independent of is-selected. */
+.photo-picker-tile.focused,
+.photo-picker-tile.settings-row-highlight {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.95);
+  transform: scale(1.04);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 0 0 5px rgba(255, 200, 150, 0.55),
+    0 14px 36px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+}
+
+.photo-picker-tile.is-selected.focused,
+.photo-picker-tile.is-selected.settings-row-highlight {
+  border-color: rgba(255, 214, 170, 1);
+  box-shadow:
+    0 0 0 3px rgba(255, 214, 170, 1),
+    0 0 0 7px rgba(255, 200, 150, 0.5),
+    0 14px 36px rgba(0, 0, 0, 0.45),
+    0 0 32px rgba(255, 190, 120, 0.4);
+}
+
+.settings-subheading {
+  display: block;
+  margin: 18px 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffd6aa;
+}
+
+.settings-textarea {
+  width: 100%;
+  min-height: 120px;
+  font: inherit;
+  font-size: 20px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  resize: vertical;
+}
+
+.settings-hint,
+.oled-note {
+  font-size: 18px;
+  opacity: 0.7;
+  line-height: 1.5;
+}
+
+.settings-apps {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-right: 8px;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(255, 255, 255, 0.38) rgba(255, 255, 255, 0.08);
+}
+
+.settings-apps::-webkit-scrollbar {
+  width: 18px;
+}
+
+.settings-apps::-webkit-scrollbar-track {
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-apps::-webkit-scrollbar-thumb {
+  min-height: 56px;
+  border: 3px solid transparent;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.38);
+  background-clip: padding-box;
+}
+
+.settings-apps > * + * {
+  margin-top: 8px;
+}
+
+.settings-app-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* Music playlist multi-select (built-in + USB). */
+.settings-track-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding-right: 6px;
+  gap: 6px;
+}
+
+.settings-track-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 20px;
+}
+
+.settings-track-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-app-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 20px;
+  transition: background 0.12s ease;
+}
+
+.settings-app-row:hover {
+  background: rgba(255, 200, 150, 0.16);
+}
+
+.settings-app-row > * + * {
+  margin-left: 12px;
+}
+
+.settings-mini-btn {
+  font: inherit;
+  font-size: 18px;
+  min-width: 40px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+}
+
+.settings-mini-btn:disabled,
+.settings-mini-btn[aria-disabled='true'] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Pinned ↑ on the first app / ↓ on the last: inert but still focusable. */
+.settings-mini-btn[aria-disabled='true'].focused {
+  opacity: 0.6;
+}
+
+.settings-pinned-list,
+.settings-inputs {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-pinned-list > * + *,
+.settings-inputs > * + * {
+  margin-top: 8px;
+}
+
+.settings-pinned-row,
+.settings-input-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 20px;
+}
+
+/* Settings -> Inputs & channels -> Add an input: "+ HDMI 4", "+ Live TV". */
+.settings-input-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 20px;
+}
+
+.settings-pinned-row > * + *,
+.settings-input-row > * + *,
+.settings-input-add > * + * {
+  margin-left: 12px;
+}
+
+.settings-pinned-title,
+.settings-input-name {
+  flex: 1;
+  min-width: 120px;
+}
+
+.settings-input-row .settings-text {
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 20;
+  padding: 14px 24px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  font-size: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Performance mode: when a user on a weaker TV enables it, the glassmorphic blur
+   and animated background are disabled for smoother rendering, while the layout
+   stays intact. Strips GPU-heavy effects for low-spec TVs (e.g. LG B4). */
+.perf-mode * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  animation: none !important;
+  transition: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.perf-mode .background,
+.perf-mode .background img {
+  filter: none !important;
+  transform: none !important;
+}
+
+/* The rule above strips every box-shadow, and the focus rings are drawn with
+   box-shadow — so the remote highlight vanished and the dock looked frozen.
+   Keep a flat ring (spread only, no blur: cheap to paint). */
+.perf-mode .focused,
+.perf-mode .settings-row-highlight {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 5px rgba(255, 200, 150, 0.6) !important;
+}
+/* ─── Custom in-app screensaver ─────────────────────────────────────────── */
+
+.custom-screensaver {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.7s ease;
+  background: #050508;
+}
+
+.custom-screensaver.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.custom-screensaver[hidden] {
+  display: none !important;
+}
+
+.custom-screensaver-bg {
+  position: absolute;
+  inset: 0;
+  background-color: #050508;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  transform: scale(1);
+  will-change: opacity, transform;
+}
+
+.custom-screensaver-bg.is-front {
+  opacity: 1;
+  z-index: 1;
+}
+
+/* The outgoing photo stays fully visible under the incoming one and drops out
+   once that has faded in — fading both at once dimmed the screen mid-change. */
+.custom-screensaver-bg.is-back {
+  opacity: 0;
+  z-index: 0;
+  transition: opacity 0s linear 1.4s;
+}
+
+/* Zoom runs on both layers, not just the front one: stopping it on the
+   outgoing photo snapped it back to 1x while it was still on screen. */
+.custom-screensaver-bg.is-photo {
+  animation: screensaver-ken-burns 28s ease-in-out infinite alternate;
+}
+
+/* Transform only (GPU); background-position repainted the photo every frame.
+   Drift stays inside the edge room the scale leaves. */
+@keyframes screensaver-ken-burns {
+  from {
+    transform: scale(1.03) translate(1%, 0);
+  }
+  to {
+    transform: scale(1.1) translate(-1.5%, -0.5%);
+  }
+}
+
+/* Aerial clips fill the saver above the photo layers, under the scrim/clock. */
+.custom-screensaver-video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: #050508;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+}
+
+.custom-screensaver-video.is-visible {
+  opacity: 1;
+}
+
+.custom-screensaver-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.28) 70%, rgba(0, 0, 0, 0.55) 100%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.45) 0%, transparent 40%);
+}
+
+.custom-screensaver-clock {
+  position: relative;
+  z-index: 3;
+  text-align: center;
+  padding: 24px 48px;
+  pointer-events: none;
+}
+
+.custom-screensaver-time {
+  font-size: 120px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 4px 40px rgba(0, 0, 0, 0.55);
+}
+
+.custom-screensaver-time:empty,
+.custom-screensaver-date:empty {
+  display: none;
+}
+
+.custom-screensaver-date {
+  margin-top: 18px;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.5);
+}
+
+.custom-screensaver-hint {
+  position: absolute;
+  z-index: 3;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  opacity: 0;
+  animation: screensaver-hint-fade 8s ease 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes screensaver-hint-fade {
+  0%, 70%, 100% { opacity: 0; }
+  15%, 40% { opacity: 0.7; }
+}
+
+/* Hide home chrome while the in-app saver is up (overlay already covers it). */
+body.custom-screensaver-active .top-bar,
+body.custom-screensaver-active .launcher,
+body.custom-screensaver-active .music-bar,
+body.custom-screensaver-active #toast {
+  visibility: hidden;
+}
+
+/* Keep subtle motion under Performance mode (otherwise static OLED risk). */
+body.perf-mode .custom-screensaver-bg.is-photo {
+  animation: screensaver-ken-burns 40s ease-in-out infinite alternate !important;
+}
+
+body.perf-mode .custom-screensaver {
+  transition: opacity 0.4s ease !important;
+}
+
+body.perf-mode .custom-screensaver-bg {
+  transition: opacity 0.8s ease !important;
+}
+
+body.perf-mode .custom-screensaver-bg.is-back {
+  transition: opacity 0s linear 0.8s !important;
+}
+
+.settings-preview-ss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 0 16px;
+  padding: 14px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f4f0eb;
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.settings-preview-ss-btn.focused,
+.settings-preview-ss-btn:focus {
+  outline: none;
+  border-color: rgba(120, 190, 255, 0.9);
+  box-shadow: 0 0 0 3px rgba(90, 160, 255, 0.35);
+  background: rgba(90, 160, 255, 0.22);
+}
+
+/* All apps (all-apps.js): every app on the TV in a grid over the home screen.
+   Under the toasts (20), above the home screen. */
+.all-apps {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  padding: 56px 72px 24px;
+  background: rgba(8, 10, 16, 0.9);
+  color: #fff;
+}
+
+.all-apps[hidden] {
+  display: none;
+}
+
+.all-apps-head {
+  display: flex;
+  align-items: baseline;
+}
+
+.all-apps-head > * + * {
+  margin-left: 24px;
+}
+
+.all-apps-head h2 {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 500;
+}
+
+.all-apps-hint {
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.all-apps-grid {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 24px 8px 48px;
+  scrollbar-width: none;
+}
+
+.all-apps-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.all-apps-grid > * {
+  margin: 14px;
+}
+
+/* A screen full of tiles over a dark backdrop: no blur to recompute. */
+.all-apps .app-tile {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.all-apps-note {
+  margin: 14px;
+  font-size: 24px;
+  opacity: 0.75;
+}
+
+/* The All apps tile's icon: a 3x3 grid drawn in the tile's icon box. */
+.all-apps-icon svg {
+  display: block;
+  width: 56%;
+  height: 56%;
+}
+
+/* Settings -> Look -> Background -> Image URL: whether the link loads. */
+.settings-url-status.is-ok {
+  color: #b9f0c4;
+}
+
+.settings-url-status.is-error {
+  color: #ffb7a8;
+}

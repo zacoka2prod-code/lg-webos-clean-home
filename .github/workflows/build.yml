@@ -1,0 +1,45 @@
+name: Test and package
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run pack
+      - run: cd dist && sha256sum *.ipk > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lg-webos-clean-home-ipk
+          path: |
+            dist/*.ipk
+            dist/SHA256SUMS
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: lg-webos-clean-home-ipk
+          path: release
+      - name: Publish tagged package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes --title "ZKP Clean Home $RELEASE_TAG"

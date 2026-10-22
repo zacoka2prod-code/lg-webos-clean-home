@@ -1,0 +1,47 @@
+{
+  "license": "Ambient tracks: CC0 1.0 / Public Domain (FreePD.com & Pixabay via SoundSafari/CC0-1.0-Music). Jazz & Relaxing tracks: Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0 (CC BY 4.0).",
+  "tracks": [
+    {
+      "id": "midnight-lounge",
+      "title": "Midnight Lounge",
+      "artist": "Ambient",
+      "file": "midnight-lounge.mp3",
+      "description": "Late-night city calm"
+    },
+    {
+      "id": "starlight-drift",
+      "title": "Starlight Drift",
+      "artist": "Ambient",
+      "file": "starlight-drift.mp3",
+      "description": "Ethereal floating pads"
+    },
+    {
+      "id": "ocean-haze",
+      "title": "Ocean Haze",
+      "artist": "Ambient",
+      "file": "ocean-haze.mp3",
+      "description": "Deep underwater glow"
+    },
+    {
+      "id": "warm-glow",
+      "title": "Warm Glow",
+      "artist": "Ambient",
+      "file": "warm-glow.mp3",
+      "description": "Soft golden atmosphere"
+    },
+    {
+      "id": "backbay-lounge",
+      "title": "Backbay Lounge",
+      "artist": "Jazz",
+      "file": "backbay-lounge.mp3",
+      "description": "Smooth late-night lounge jazz"
+    },
+    {
+      "id": "chill-wave",
+      "title": "Chill Wave",
+      "artist": "Relaxing",
+      "file": "chill-wave.mp3",
+      "description": "Laid-back downtempo groove"
+    }
+  ]
+}

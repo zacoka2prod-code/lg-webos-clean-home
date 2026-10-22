@@ -1,0 +1,26 @@
+{
+  "name": "lg-webos-clean-home",
+  "version": "0.0.120",
+  "description": "Clean Home for LG webOS, adapted from Launch Home",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "pack": "node scripts/build.js --pack",
+    "verify-ipk": "node scripts/verify-ipk.js",
+    "deploy": "bash scripts/deploy.sh",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "version:set": "node scripts/set-version.js",
+    "version": "node scripts/set-version.js && git add version.md appinfo.json voice/overlay/appinfo.json"
+  },
+  "devDependencies": {
+    "@procot/webostv": "^1.2.6",
+    "@webos-tools/cli": "^3.2.5",
+    "esbuild": "^0.25.0",
+    "jsdom": "^30.1.2",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
+  }
+}

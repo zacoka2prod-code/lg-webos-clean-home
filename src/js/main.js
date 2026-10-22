@@ -1,0 +1,1443 @@
+import {setClockTime} from './clock-format.js';
+import {createAllApps} from './all-apps.js';
+import {createCleanHome} from './clean-home.js';
+import './compat.js';
+import {loadConfig, saveConfig, applyUsbConfig, readStoredConfigText} from './config.js';
+import {applyActiveProfile} from './profiles.js';
+import {resolveLoungePaths} from './usb.js';
+import {createBackgroundController} from './background.js';
+import {createMusicPlayer} from './music.js';
+import {createAppGrid} from './apps.js';
+import {createInputRow} from './inputs.js';
+import {createChannelStrip} from './channels.js';
+import {createFocusManager} from './focus.js';
+import {createSettingsPanel} from './settings.js';
+import {
+  getForegroundApp,
+  launchApp,
+  launchAppViaRoot,
+  listApps,
+  closeApp,
+  enableHomeWatcher,
+  disableHomeWatcher,
+  enableBootLaunch,
+  disableBootLaunch,
+  enableVoice,
+  writeAutoBackup,
+  setSystemVolume,
+  setScreensaverTimeout,
+  execRoot
+} from './luna.js';
+import {isHomeApp} from './remote.js';
+import {isTerminalAppId, getAppIdCandidates} from './app-icons.js';
+import {setPreferBundledIcons} from './app-catalog.js';
+import {setLiteImages} from './backgrounds.js';
+import {createVoiceIndicator} from './voice-indicator.js';
+import {createCustomScreensaver} from './screensaver.js';
+import {createWeatherPanel} from './weather.js';
+import {addVoiceListener, setVoiceWsEnabled} from './voice-ws.js';
+import {resolveVoiceLaunch} from './voice-launch.js';
+import {activity, noteForeground} from './activity.js';
+import {settingsBackupText} from './settings-backup.js';
+import {APP_VERSION} from './version.js';
+
+const APP_ID = 'org.webosbrew.lounge.launcher';
+
+// The settings as the previous Launch Home stored them, before loadConfig()
+// updates them (see keepSettingsFromBeforeUpdate).
+const storedSettingsAtStart = readStoredConfigText();
+let baseConfig = loadConfig();
+let cleanHome = null;
+// This home uses the separate input-only Home hook. It never reserves an
+// audio/video player or runs the source launcher's second Home watcher.
+baseConfig.launcher.launchOnHome = false;
+baseConfig.launcher.returnOnAppExit = false;
+baseConfig.launcher.bootOnStart = false;
+let visible = true;
+let foregroundTimer = null;
+let lastForegroundAppId = APP_ID;
+let returningToLounge = false;
+let launchPending = false;
+let wentHiddenSinceLaunch = false;
+let launchAt = 0;
+let lastHomeLaunchAt = 0;
+let ghostReasserted = false;
+let lastVoiceLaunchKey = '';
+let lastVoiceLaunchAt = 0;
+
+const elements = {
+  backgroundLayer: document.getElementById('background-layer'),
+  scrim: document.getElementById('scrim'),
+  dim: document.getElementById('dim'),
+  clock: document.getElementById('clock'),
+  clockDate: document.getElementById('clock-date'),
+  appSettingsBtn: document.getElementById('app-settings-btn'),
+  inputRow: document.getElementById('input-row'),
+  channelStrip: document.getElementById('channel-strip'),
+  launcher: document.querySelector('.launcher'),
+  appGridShell: document.getElementById('app-grid-shell'),
+  appGrid: document.getElementById('app-grid'),
+  musicBar: document.getElementById('music-bar'),
+  trackTitle: document.getElementById('track-title'),
+  muteBtn: document.getElementById('mute-btn'),
+  volumeSlider: document.getElementById('volume-slider'),
+  audio: document.getElementById('ambient-audio'),
+  settingsPanel: document.getElementById('settings-panel'),
+  toast: document.getElementById('toast'),
+  voiceIndicator: document.getElementById('voice-indicator'),
+  customScreensaver: document.getElementById('custom-screensaver'),
+  weatherPanel: document.getElementById('weather-panel')
+};
+
+const voiceIndicator = createVoiceIndicator(elements.voiceIndicator);
+// Launch Home's voice assistant socket only runs while voice is turned on.
+setVoiceWsEnabled(!!(baseConfig.launcher && baseConfig.launcher.voiceEnabled));
+const weather = createWeatherPanel(elements.weatherPanel, getConfig, {
+  isVisible: function () { return visible; }
+});
+
+function getBaseConfig() {
+  return baseConfig;
+}
+
+function getConfig() {
+  const cfg = applyActiveProfile(baseConfig);
+  return Object.assign({}, cfg, {
+    music: Object.assign({}, cfg.music, {enabled: false}),
+    background: Object.assign({}, cfg.background, {source: 'preset', preset: 'warm-gradient', kenBurns: false}),
+    launcher: Object.assign({}, cfg.launcher, {
+      iconLayout: 'wrap', bundledIcons: false, launchOnHome: false,
+      returnOnAppExit: false, volumeAtHome: null, volumeOnAppLaunch: null
+    })
+  });
+}
+
+function setConfig(nextConfig) {
+  baseConfig = nextConfig;
+}
+
+function showToast(message) {
+  elements.toast.textContent = message;
+  elements.toast.classList.add('visible');
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(function () {
+    elements.toast.classList.remove('visible');
+  }, 2800);
+}
+
+elements.onToast = showToast;
+
+// Aerial clip switched by the remote's Channel Up / Channel Down. In Single
+// mode the landed clip becomes the saved choice (the Settings picker reads the
+// base config, so it follows); in Slideshow mode the skip is transient and
+// nothing is written.
+elements.onAerialChange = function (change) {
+  if (!change) return;
+  if (change.mode === 'single' && change.id) {
+    const config = getBaseConfig();
+    setConfig(Object.assign({}, config, {
+      background: Object.assign({}, config.background, {aerial: change.id})
+    }));
+    saveConfig(baseConfig);
+  }
+  if (change.title) {
+    showToast('Aerial \u00b7 ' + change.title);
+  }
+};
+
+const background = createBackgroundController(elements, getConfig);
+const music = createMusicPlayer(getConfig, Object.assign({}, elements, {
+  onToast: showToast,
+  onBarChange: function () { updateMusicBarClearance(); }
+}));
+// HDMI / input switch or a TV channel — raise TV volume like launching an app.
+function beforeInputLaunch() {
+  applyAppLaunchVolume();
+  const config = getConfig();
+  if (config.music && config.music.pauseOnLaunch) {
+    music.fadeOutAndPause();
+  }
+}
+
+function channelsChip() {
+  return elements.inputRow.querySelector('[data-channels-chip]');
+}
+
+// Live TV channels above the inputs row (Channels chip; channels.js).
+const channelStrip = createChannelStrip(elements.channelStrip, getConfig, {
+  onToast: showToast,
+  onBeforeLaunch: beforeInputLaunch,
+  focusControl: function (el) {
+    return !!(focus && focus.focusElement(el));
+  },
+  // Mark the chip open/closed in place: redrawing the row would drop focus.
+  onToggle: function (isOpen) {
+    const chip = channelsChip();
+    if (!chip) return;
+    chip.classList.toggle('active', isOpen);
+    chip.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    // Closing took the focused channel away (a pick that didn't switch, or
+    // Back): land on the Channels chip rather than on nothing.
+    const active = document.activeElement;
+    if (!isOpen && (!active || active === document.body)) focus.focusElement(chip);
+  },
+  // The chip appears once channels are found (or goes if they are gone).
+  onAvailabilityChange: function () {
+    inputs.render();
+  }
+});
+
+const inputs = createInputRow(elements.inputRow, getConfig, {
+  onToast: showToast,
+  onBeforeLaunch: beforeInputLaunch,
+  channels: channelStrip
+});
+function syncHomeWatcher(config, opts) {
+  const quiet = opts && opts.quiet;
+  const on = !!(config && config.launcher &&
+    (config.launcher.launchOnHome || config.launcher.returnOnAppExit));
+  const apply = on ? enableHomeWatcher : disableHomeWatcher;
+  return apply().then(function () {
+    if (on && !quiet) showToast('Home button → Launch Home is active');
+  }).catch(function (err) {
+    console.error(err);
+    if (on) {
+      const detail = err && err.message ? String(err.message) : '';
+      const short = detail.replace(/\s+/g, ' ').slice(0, 90);
+      showToast(short
+        ? 'Home watcher failed: ' + short
+        : 'Home watcher failed — check root / Homebrew Channel');
+    }
+  });
+}
+
+function syncBootLaunch(config, opts) {
+  const quiet = opts && opts.quiet;
+  const on = !!(config && config.launcher && config.launcher.bootOnStart);
+  const apply = on ? enableBootLaunch : disableBootLaunch;
+  return apply().then(function () {
+    if (on && !quiet) showToast('Boot on TV start is active');
+  }).catch(function (err) {
+    console.error(err);
+    if (on) {
+      const detail = err && err.message ? String(err.message) : '';
+      const short = detail.replace(/\s+/g, ' ').slice(0, 90);
+      showToast(short
+        ? 'Boot on start failed: ' + short
+        : 'Boot on start failed — check root / Homebrew Channel');
+    }
+  });
+}
+
+// Voice assistant (Settings -> AI Voice). Re-running the enable at start is
+// cheap when all is current, and restarts the daemon on the code this Launch
+// Home version ships after an update.
+function syncVoice(config) {
+  if (!(config && config.launcher && config.launcher.voiceEnabled)) {
+    return Promise.resolve();
+  }
+  return enableVoice().catch(function (err) {
+    console.error(err);
+    const detail = err && err.message ? String(err.message) : '';
+    showToast('Voice assistant failed to start' +
+      (detail ? ': ' + detail.replace(/\s+/g, ' ').slice(0, 80) : ''));
+  });
+}
+
+function syncRootHooks(config, opts) {
+  return Promise.all([
+    syncHomeWatcher(config, opts),
+    syncBootLaunch(config, opts)
+  ]);
+}
+
+const settings = createSettingsPanel(elements.settingsPanel, getBaseConfig, {
+  onOpen: function () {
+    music.fadeInAndResume();
+    if (customScreensaver && typeof customScreensaver.hide === 'function') {
+      customScreensaver.hide();
+    }
+  },
+  onRendered: function () {
+    // Land focus inside the panel so wheel / arrows navigate options immediately.
+    if (focus && typeof focus.focusWithin === 'function') {
+      focus.focusWithin('#settings-panel');
+    }
+  },
+  onSave: function (savedConfig) {
+    setConfig(savedConfig);
+    applyHomeVolume();
+    applyScreensaverSetting();
+    if (customScreensaver && typeof customScreensaver.applyConfig === 'function') {
+      customScreensaver.applyConfig();
+    }
+    refreshAll();
+    syncRootHooks(savedConfig);
+  },
+  onClose: function () {
+    // Back on the home control Settings was opened from (the gear).
+    focus.focusHomeDock();
+    if (customScreensaver && typeof customScreensaver.resetIdle === 'function') {
+      customScreensaver.resetIdle();
+    }
+  },
+  onPreviewScreensaver: function () {
+    // Shown over the still-open panel; dismissing it hands focus back to
+    // Settings via reclaimInput().
+    if (customScreensaver && typeof customScreensaver.preview === 'function') {
+      customScreensaver.preview();
+    }
+  },
+  // Settings -> AI Voice turned the voice assistant on/off (already applied
+  // and saved there).
+  onVoiceEnabledChange: function (on) {
+    setVoiceWsEnabled(on);
+  },
+  // Inputs list: offer Live TV when the TV has channels tuned.
+  hasTvChannels: function () {
+    return channelStrip.hasChannels();
+  },
+  // Re-focus a control after Settings redraws it (e.g. the pinned-apps list).
+  focusControl: function (el) {
+    return !!(focus && focus.focusElement(el));
+  },
+  onToast: showToast
+});
+// A null level ("Don't change" in Settings) leaves the TV volume alone.
+function applySystemVolume(level) {
+  if (typeof level !== 'number') return Promise.resolve();
+  return setSystemVolume(level).catch(function () { /* best-effort */ });
+}
+
+// The home volume, settled before the music starts: fired and forgotten, the
+// Luna call landed a moment after the first notes, so each start played a
+// split second at the TV's previous (louder) level and then dropped. Capped
+// so a slow or missing audio service never holds up the home screen.
+function settleHomeVolume() {
+  return Promise.race([
+    applyHomeVolume(),
+    new Promise(function (resolve) { setTimeout(resolve, 1500); })
+  ]);
+}
+
+function applyHomeVolume() {
+  const config = getConfig();
+  return applySystemVolume(config.launcher && config.launcher.volumeAtHome);
+}
+
+function applyAppLaunchVolume() {
+  const config = getConfig();
+  return applySystemVolume(config.launcher && config.launcher.volumeOnAppLaunch);
+}
+
+function applyScreensaverSetting() {
+  const config = getConfig();
+  let mins = config.launcher && typeof config.launcher.screensaverMinutes === 'number'
+    ? config.launcher.screensaverMinutes
+    : 30;
+  // When the in-app screensaver is on, push the LG system timer to max so it
+  // does not launch com.webos.app.screensaver over our slideshow.
+  if (config.launcher && config.launcher.customScreensaver !== false && mins > 0 && mins < 30) {
+    mins = 30;
+  }
+  // Guard against legacy invalid values (5/15/60) still in memory.
+  if (mins !== 0 && mins !== 3 && mins !== 10 && mins !== 20 && mins !== 30) {
+    if (mins === 5) mins = 3;
+    else if (mins === 15) mins = 10;
+    else if (mins >= 60) mins = 30;
+    else mins = 30;
+  }
+  return setScreensaverTimeout(mins).catch(function () { /* best-effort */ });
+}
+
+const customScreensaver = createCustomScreensaver({
+  rootEl: elements.customScreensaver,
+  getConfig: getConfig,
+  isBlocked: function () {
+    if (!visible) return true;
+    // Another app or TV Settings has the remote: keys go there, so we'd count
+    // as idle and start a 4K slideshow underneath it.
+    if (document.body.classList.contains('app-inactive')) return true;
+    if (settings && typeof settings.isVisible === 'function' && settings.isVisible()) {
+      return true;
+    }
+    if (launchPending) return true;
+    return false;
+  },
+  onShow: function () {
+    // Ambient music keeps playing under the saver.
+  },
+  onHide: function () {
+    reclaimInput();
+  }
+});
+
+const apps = createAppGrid(elements.appGrid, getConfig, {
+  cleanStyle: true,
+  showAllOnHome: true,
+  onBeforeLaunch: function () {
+    launchPending = true;
+    wentHiddenSinceLaunch = false;
+    ghostReasserted = false;
+    launchAt = Date.now();
+    pokeForegroundWatcher();
+    if (customScreensaver && typeof customScreensaver.hide === 'function') {
+      customScreensaver.hide();
+    }
+    const config = getConfig();
+    if (config.music && config.music.pauseOnLaunch) {
+      music.fadeOutAndPause();
+    }
+    applyAppLaunchVolume();
+  },
+  onOpenSettings: function () {
+    settings.show();
+  },
+  onOpenTvSettings: function () {
+    openTvSettings();
+  },
+  onOpenAllApps: function () {
+    allApps.show();
+  },
+  onToast: showToast
+});
+
+// Blue (and Channel Up / Channel Down where the remote delivers them) steps the
+// aerial wallpaper to the next clip. They do nothing — like today — when an open
+// surface owns the keys: Settings, the Channels strip, All apps, or the
+// screensaver (which a key dismisses instead).
+function stepAerialBackground(direction) {
+  if (settings.isVisible()) return;
+  if (allApps.isOpen()) return;
+  if (channelStrip.isOpen()) return;
+  if (customScreensaver && typeof customScreensaver.isActive === 'function' &&
+      customScreensaver.isActive()) {
+    return;
+  }
+  background.stepAerial(direction);
+}
+
+const focus = createFocusManager(document.getElementById('app'), {
+  onNumber: function (n) {
+    // While the screensaver is showing, a key press dismisses it (screensaver.js)
+    // rather than opening an app behind it.
+    if (customScreensaver && typeof customScreensaver.isActive === 'function' &&
+        customScreensaver.isActive()) {
+      return;
+    }
+    apps.launchByNumber(n);
+  },
+  onBack: function () {
+    if (cleanHome && cleanHome.closeInputs()) return;
+    if (allApps.isOpen()) {
+      allApps.hide();
+      return;
+    }
+    if (channelStrip.isOpen()) {
+      channelStrip.close();
+      return;
+    }
+    if (settings.isVisible()) {
+      if (typeof settings.handleBack === 'function' && settings.handleBack()) {
+        return;
+      }
+      settings.hide();
+      return;
+    }
+  },
+  onRed: function () {
+    if (settings.isVisible()) return;
+    // Red also unlocks autoplay if the TV blocked silent start.
+    if (music && typeof music.unlockAutoplay === 'function') {
+      music.unlockAutoplay();
+    }
+    music.togglePause();
+  },
+  onGreen: function () {
+    if (settings.isVisible()) return;
+    music.nextTrack();
+  },
+  onVolumeUp: function () {
+    if (settings.isVisible()) return;
+    music.nudgeVolume(5);
+  },
+  onVolumeDown: function () {
+    if (settings.isVisible()) return;
+    music.nudgeVolume(-5);
+  },
+  onVolumeMute: function () {
+    if (settings.isVisible()) return;
+    elements.muteBtn.click();
+  },
+  onBlue: function () {
+    stepAerialBackground(1);
+  },
+  onChannelUp: function () {
+    stepAerialBackground(1);
+  },
+  onChannelDown: function () {
+    stepAerialBackground(-1);
+  }
+});
+
+// All apps: the grid of every app on the TV, from the All apps tile.
+const allApps = createAllApps({
+  mount: document.getElementById('app'),
+  focus: focus,
+  launch: function (app) {
+    allApps.hide();
+    apps.launchApp(app);
+  }
+});
+
+cleanHome = createCleanHome({
+  focus: focus,
+  onNetwork: function () {
+    const command = 'luna-send -n 1 luna://com.webos.applicationManager/launch ' +
+      '\'{"id":"com.palm.app.settings","params":{"target":"network"}}\'';
+    execRoot(command).catch(openTvSettings);
+  }
+});
+
+// The sandboxed launch of the TV's own Settings app can go unanswered on newer
+// webOS. Waiting out launchApp's 5 s timeout for each candidate id left about
+// 10 s of nothing after pressing the tile, so after a short wait also launch
+// it via root. Whichever answers first wins; a second launch of an app that
+// is already opening just brings it forward.
+const SYSTEM_APP_ROOT_AFTER_MS = 1200;
+
+function launchSystemApp(id) {
+  return new Promise(function (resolve, reject) {
+    let settled = false;
+    let failures = 0;
+    let rootStarted = false;
+    let rootTimer = null;
+    function succeed() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(rootTimer);
+      resolve(id);
+    }
+    function failOne() {
+      failures += 1;
+      if (!settled && failures >= 2) {
+        settled = true;
+        reject(new Error('Could not launch ' + id));
+      }
+    }
+    function startRoot() {
+      if (rootStarted || settled) return;
+      rootStarted = true;
+      launchAppViaRoot(id).then(succeed, failOne);
+    }
+    rootTimer = setTimeout(startRoot, SYSTEM_APP_ROOT_AFTER_MS);
+    launchApp(id).then(succeed, function () {
+      clearTimeout(rootTimer);
+      failOne();
+      startRoot();
+    });
+  });
+}
+
+async function openTvSettings() {
+  // TV Settings opens as a panel over Launch Home, which stays on screen
+  // underneath: pause its animations now rather than waiting for a blur event
+  // (older webOS may not send one). Any key back in Launch Home clears it.
+  setAppInactive(true);
+  const config = getConfig();
+  if (config.music && config.music.pauseOnLaunch) {
+    music.fadeOutAndPause();
+  }
+  applyAppLaunchVolume();
+  const ids = getAppIdCandidates('com.webos.app.settings');
+  for (let i = 0; i < ids.length; i += 1) {
+    try {
+      await launchSystemApp(ids[i]);
+      return;
+    } catch (err) {
+      // Try the next candidate id.
+    }
+  }
+  showToast('Could not open TV Settings');
+}
+
+if (elements.appSettingsBtn) {
+  // Use click only (not pointerup+click). Dual handlers raced with Settings
+  // Close, which sits in the same top-right corner as the gear on Magic Remote.
+  elements.appSettingsBtn.addEventListener('click', function (event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    settings.show();
+  });
+}
+
+function formatClockDate(date, timezone) {
+  const options = {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  };
+  if (timezone) {
+    options.timeZone = timezone;
+  }
+  try {
+    return new Intl.DateTimeFormat('fr-FR', options).format(date);
+  } catch (err) {
+    // Invalid timezone — fall back to local date.
+    delete options.timeZone;
+    return new Intl.DateTimeFormat('fr-FR', options).format(date);
+  }
+}
+
+function applyClockStyle() {
+  const launcher = (getConfig().launcher) || {};
+  const rawAlign = launcher.clockAlign || 'center';
+  // left | center (centre top) | center-middle | right
+  const align =
+    rawAlign === 'left' ||
+    rawAlign === 'right' ||
+    rawAlign === 'center-middle'
+      ? rawAlign
+      : 'center';
+  const sizeAllowed = {
+    small: 1,
+    medium: 1,
+    large: 1,
+    'x-large': 1,
+    'xx-large': 1
+  };
+  const size = sizeAllowed[launcher.clockSize] ? launcher.clockSize : 'large';
+
+  document.body.classList.remove(
+    'clock-left',
+    'clock-center',
+    'clock-center-middle',
+    'clock-right'
+  );
+  // CSS class: center-middle → clock-center-middle; others → clock-{align}
+  document.body.classList.add('clock-' + align);
+
+  document.body.classList.remove(
+    'clock-size-small',
+    'clock-size-medium',
+    'clock-size-large',
+    'clock-size-x-large',
+    'clock-size-xx-large'
+  );
+  document.body.classList.add('clock-size-' + size);
+}
+
+function updateClock() {
+  const config = getConfig();
+  const launcher = config.launcher || {};
+  const now = new Date();
+
+  applyClockStyle();
+
+  if (launcher.showClock) {
+    setClockTime(elements.clock, now, launcher.timezone || '', launcher.clockFormat === '12');
+  } else {
+    elements.clock.textContent = '';
+  }
+
+  if (elements.clockDate) {
+    if (launcher.showDate) {
+      elements.clockDate.textContent = formatClockDate(now, launcher.timezone || '');
+    } else {
+      elements.clockDate.textContent = '';
+    }
+  }
+  if (cleanHome) cleanHome.updateGreeting(now);
+}
+
+async function applyUsbOverrides() {
+  const config = getBaseConfig();
+  const paths = await resolveLoungePaths(config);
+
+  if (paths.usbConfig) {
+    setConfig(applyUsbConfig(config, paths.usbConfig));
+    saveConfig(baseConfig);
+  }
+
+  if (!baseConfig.music.path && paths.musicPath) {
+    baseConfig.music.path = paths.musicPath;
+  }
+
+  if (!baseConfig.background.path && paths.backgroundPath) {
+    baseConfig.background.path = paths.backgroundPath;
+  }
+}
+
+// Icon row layout: 'scroll' keeps a single horizontal row capped to N icons
+// (the rest reachable by scrolling left/right), 'wrap' lets icons stack onto
+// multiple rows. Scroll is the default.
+function applyIconLayout() {
+  const grid = elements.appGrid;
+  const shell = elements.appGridShell;
+  const launcher = elements.launcher;
+  if (!grid || !launcher) return;
+  const config = getConfig();
+  const layout = (config.launcher && config.launcher.iconLayout) || 'scroll';
+  launcher.classList.toggle('layout-scroll', layout === 'scroll');
+  launcher.classList.toggle('layout-wrap', layout !== 'scroll');
+  if (layout === 'scroll') {
+    const scaleBySize = {small: 0.78, medium: 1, large: 1.28};
+    const iconSize = (config.launcher && config.launcher.iconSize) || 'medium';
+    const scale = scaleBySize[iconSize] || 1;
+    let perRow = parseInt(config.launcher && config.launcher.iconsPerRow, 10) || 7;
+    perRow = Math.min(Math.max(perRow, 3), 12);
+    const tileFootprint = (152 * scale) + 28; // tile width + 14px*2 margins
+    // Plus the grid's own side padding (8px each side in scroll layout).
+    // Without it, exactly perRow tiles overflowed by 16px: the arrows showed
+    // and the row scrolled a few pixels for nothing.
+    const gridSidePadding = 16;
+    const maxW = Math.round(perRow * tileFootprint + gridSidePadding) + 'px';
+    // Cap the shell (edges sit on the shell); grid fills the shell width.
+    if (shell) {
+      shell.style.maxWidth = maxW;
+      shell.style.setProperty('--tile-scale', String(scale));
+    }
+    grid.style.maxWidth = '';
+  } else {
+    if (shell) {
+      shell.style.maxWidth = '';
+      shell.style.setProperty('--tile-scale', '1');
+    }
+    grid.style.maxWidth = '';
+  }
+  scheduleAppScrollHints();
+}
+
+/**
+ * Show left/right chevron fades when more app icons exist off-screen.
+ * Only applies in scroll-one-row layout.
+ */
+/**
+ * The music bar sits in the bottom-right corner. When the lowest row of app
+ * tiles reaches under it (a wide row, wrapped rows), lift the launcher clear
+ * of it (body.music-bar-clear). Only across, and only what the row shows:
+ * lifting doesn't move tiles sideways, and the one-row layout's scrolling
+ * doesn't change which part of the screen it covers, so this never flips.
+ */
+function updateMusicBarClearance() {
+  const bar = document.getElementById('music-bar');
+  const grid = elements.appGrid;
+  if (!bar || !grid) return;
+  const b = bar.getBoundingClientRect();
+  // The row's visible area: in the one-row layout, tiles scrolled out of view
+  // still have positions. Counting them lifted the row at one end of the
+  // scroll and dropped it at the other.
+  const g = grid.getBoundingClientRect();
+  let overlaps = false;
+  if (b.width > 0 && b.height > 0) {
+    const tiles = grid.querySelectorAll('.app-tile');
+    let lowest = -Infinity;
+    for (let i = 0; i < tiles.length; i += 1) {
+      lowest = Math.max(lowest, tiles[i].getBoundingClientRect().top);
+    }
+    for (let i = 0; i < tiles.length && !overlaps; i += 1) {
+      const r = tiles[i].getBoundingClientRect();
+      if (lowest - r.top > 24 || r.width === 0) continue;
+      const left = Math.max(r.left, g.left);
+      const right = Math.min(r.right, g.right);
+      if (right <= left) continue;
+      overlaps = left < b.right && right > b.left;
+    }
+  }
+  document.body.classList.toggle('music-bar-clear', overlaps);
+}
+
+function updateAppScrollHints() {
+  updateMusicBarClearance();
+  const grid = elements.appGrid;
+  const shell = elements.appGridShell;
+  const launcher = elements.launcher;
+  if (!grid || !shell) return;
+
+  const scrollMode = launcher && launcher.classList.contains('layout-scroll');
+  if (!scrollMode) {
+    shell.classList.remove('can-scroll-left', 'can-scroll-right');
+    return;
+  }
+
+  // scrollWidth can lag a frame after tile rebuild; remeasure if needed.
+  // Arrows only when at least a third of a tile is out of view: a few
+  // pixels of overflow (rounding, borders) is nothing worth scrolling to.
+  const tile = grid.querySelector('.app-tile');
+  const minWorth = Math.max(8, tile ? tile.offsetWidth / 3 : 48);
+  const maxScroll = grid.scrollWidth - grid.clientWidth;
+  const hasOverflow = maxScroll > minWorth;
+  const atLeft = grid.scrollLeft <= 6;
+  const atRight = grid.scrollLeft >= maxScroll - 6;
+
+  shell.classList.toggle('can-scroll-left', hasOverflow && !atLeft);
+  shell.classList.toggle('can-scroll-right', hasOverflow && !atRight);
+}
+
+/** Remeasure after layout/images settle (scrollWidth can lag one frame). */
+function scheduleAppScrollHints() {
+  updateAppScrollHints();
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(function () {
+      updateAppScrollHints();
+      setTimeout(updateAppScrollHints, 80);
+    });
+  } else {
+    setTimeout(updateAppScrollHints, 80);
+  }
+}
+
+function bindAppScrollHints() {
+  const grid = elements.appGrid;
+  if (!grid || grid.dataset.scrollHintsBound === '1') return;
+  grid.dataset.scrollHintsBound = '1';
+
+  grid.addEventListener('scroll', function () {
+    updateAppScrollHints();
+  }, {passive: true});
+
+  window.addEventListener('resize', function () {
+    scheduleAppScrollHints();
+  });
+}
+
+function applyIconAlign() {
+  if (!elements.launcher) return;
+  const config = getConfig();
+  const align = (config.launcher && config.launcher.iconAlign) || 'center';
+  elements.launcher.classList.remove('icons-left', 'icons-center', 'icons-right');
+  const cls = align === 'left' ? 'icons-left' : align === 'right' ? 'icons-right' : 'icons-center';
+  elements.launcher.classList.add(cls);
+}
+
+// When a user on a weaker TV enables Performance mode, the glassmorphic blur and
+// animated background are disabled for smoother rendering, while the layout stays
+// intact (see the `.perf-mode` rules in styles/main.css).
+// Settings -> Look -> Glass colour and Glass border: body.glass-<tint> and
+// body.glass-border-<colour> recolour the glass (main.css). Light glass with
+// a white border is the original look and needs no class.
+const GLASS_TINTS = ['dark', 'black', 'blue', 'purple', 'green', 'warm'];
+const GLASS_BORDERS = ['glass', 'none', 'black', 'blue', 'purple', 'green', 'warm', 'gold'];
+// Settings -> Look -> Focus colour: body.focus-<colour>; warm needs no class.
+const FOCUS_COLOURS = ['white', 'border', 'blue', 'purple', 'green', 'gold'];
+
+function applyGlassTint() {
+  const launcher = getConfig().launcher || {};
+  GLASS_TINTS.forEach(function (name) {
+    document.body.classList.toggle('glass-' + name, name === launcher.glassTint);
+  });
+  GLASS_BORDERS.forEach(function (name) {
+    document.body.classList.toggle('glass-border-' + name, name === launcher.glassBorder);
+  });
+  FOCUS_COLOURS.forEach(function (name) {
+    document.body.classList.toggle('focus-' + name, name === launcher.focusColour);
+  });
+}
+
+function applyPerfMode() {
+  const config = getConfig();
+  const on = !!(config.launcher && config.launcher.perfMode);
+  document.body.classList.toggle('perf-mode', on);
+  // 1920px wallpapers instead of 4K (see backgrounds.js).
+  setLiteImages(on);
+}
+
+/**
+ * @param {{resume?: boolean}} [opts] resume: returning to Launch Home; keeps
+ *   the dock as-is when nothing about it changed (see apps.refresh).
+ */
+async function refreshAll(opts) {
+  const resume = !!(opts && opts.resume);
+  updateClock();
+  applyIconAlign();
+  applyPerfMode();
+  applyGlassTint();
+  music.applyConfig();
+  // Paints the cached forecast at once; the network fetch (if stale) is not awaited.
+  weather.refresh();
+  // Returning from an app: the wallpaper and playlist stay as they are when
+  // their settings haven't changed (see background.refresh, music.loadTracks).
+  await background.refresh({reuse: resume});
+  await inputs.refresh();
+  // Whether the TV has channels decides if the Channels chip shows.
+  channelStrip.refresh().catch(function () { /* no channels chip */ });
+  const launcherConfig = getConfig().launcher || {};
+  setPreferBundledIcons(launcherConfig.bundledIcons !== false);
+  await apps.refresh({reuse: resume});
+  applyIconLayout();
+  scheduleAppScrollHints();
+  await music.loadTracks({reuse: resume});
+  // After a return the remote is already on the tile it was on (handleResume).
+  // Otherwise (start-up, after Save): where the remote was on the home screen,
+  // else the first tile. Not while Settings is still open.
+  if (!resume && !settings.isVisible()) focus.focusHomeDock();
+  if (cleanHome) cleanHome.refresh();
+}
+
+// Reclaim system keyboard/pointer focus and re-select a dock tile.
+// After Home-button intercept, webOS often leaves INPUT routed to stock Home
+// even though Launch Home is painted on top — remote OK does nothing until we
+// re-assert window focus and a real focusable tile.
+function reclaimInput() {
+  // Settings is open (e.g. after a screensaver preview): stay on the row the
+  // user was on instead of jumping to the hidden dock.
+  if (settings && settings.isVisible()) {
+    try { window.focus(); } catch (err) { /* ignore */ }
+    const current = elements.settingsPanel &&
+      elements.settingsPanel.querySelector('.focusable.focused');
+    if (!(current && focus.focusElement(current))) {
+      focus.focusWithin('#settings-panel');
+    }
+    return;
+  }
+  // All apps is open: stay on the app the remote was on.
+  if (allApps.isOpen()) {
+    try { window.focus(); } catch (err) { /* ignore */ }
+    allApps.refocus();
+    return;
+  }
+  // Clear any stuck settings-open dim/hide that would block the dock.
+  document.body.classList.remove('settings-open');
+  if (elements.settingsPanel) {
+    elements.settingsPanel.hidden = true;
+  }
+  try { window.focus(); } catch (err) { /* ignore */ }
+  try { document.body && document.body.focus && document.body.focus(); } catch (err) { /* ignore */ }
+  try {
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+  } catch (err) { /* ignore */ }
+  if (focus && typeof focus.focusHomeDock === 'function') {
+    focus.focusHomeDock();
+  } else {
+    focus.refresh();
+  }
+}
+
+let resumeTimer = null;
+function scheduleReclaimBursts() {
+  activity.reclaims += 1;
+  // webOS may deliver input ownership a few hundred ms after the surface paints.
+  reclaimInput();
+  clearTimeout(scheduleReclaimBursts.t1);
+  clearTimeout(scheduleReclaimBursts.t2);
+  clearTimeout(scheduleReclaimBursts.t3);
+  scheduleReclaimBursts.t1 = setTimeout(reclaimInput, 250);
+  scheduleReclaimBursts.t2 = setTimeout(reclaimInput, 800);
+  scheduleReclaimBursts.t3 = setTimeout(reclaimInput, 1600);
+}
+
+// An overlay app such as LG Settings takes the remote but leaves Launch Home
+// on screen underneath. Hold the wallpaper motion still meanwhile, so the TV
+// isn't re-compositing the 4K photo and the glass blur behind that panel on
+// every frame (its menus felt sluggish).
+function setAppInactive(on) {
+  document.body.classList.toggle('app-inactive', !!on);
+}
+
+function handleResume() {
+  visible = true;
+  launchPending = false;
+  returningToLounge = false;
+  setAppInactive(false);
+  if (voiceIndicator && typeof voiceIndicator.start === 'function') {
+    voiceIndicator.start();
+  }
+  // Debounce stacked resume events (visibility + webOSRelaunch + focus).
+  clearTimeout(resumeTimer);
+  resumeTimer = setTimeout(async function () {
+    const config = getConfig();
+    await settleHomeVolume();
+    if (config.music && config.music.resumeOnReturn) {
+      music.fadeInAndResume();
+    }
+    // Do not kill an intentional screensaver preview on resume noise.
+    // (Idle auto-show still ends on real key press via the saver itself.)
+    if (customScreensaver && typeof customScreensaver.isActive === 'function' &&
+        customScreensaver.isActive()) {
+      /* leave preview up */
+    } else if (customScreensaver && typeof customScreensaver.resetIdle === 'function') {
+      customScreensaver.resetIdle();
+    }
+    // Give the remote back at once, on the control it was on; the refresh
+    // runs behind it. Waiting for the refresh first (Luna and root calls one
+    // after another) left the remote dead for seconds on slow TVs.
+    reclaimInput();
+    refreshAll({resume: true}).then(function () {
+      scheduleReclaimBursts();
+    }, function (err) {
+      console.error(err);
+      scheduleReclaimBursts();
+    });
+  }, 50);
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    visible = false;
+    // Our surface was backgrounded, so any app we launched took the foreground
+    // normally. This disarms the ghost-focus recovery for that launch.
+    wentHiddenSinceLaunch = true;
+    if (voiceIndicator && typeof voiceIndicator.hide === 'function') {
+      voiceIndicator.hide();
+    }
+    if (customScreensaver && typeof customScreensaver.hide === 'function') {
+      customScreensaver.hide();
+    }
+    channelStrip.close();
+    return;
+  }
+  handleResume();
+}
+
+function shouldInterceptHome(launcher) {
+  if (!launcher) return false;
+  // launchOnHome (preferred) or legacy returnOnAppExit: when the stock home
+  // comes to the foreground after another app (Home button or app exit),
+  // relaunch Launch Home so it acts as the home screen.
+  return !!(launcher.launchOnHome || launcher.returnOnAppExit);
+}
+
+async function launchLoungeBestEffort() {
+  try {
+    await launchApp(APP_ID);
+    return;
+  } catch (err) {
+    // Sandboxed launch often fails while we are backgrounded.
+  }
+  try {
+    await launchAppViaRoot(APP_ID);
+  } catch (err) {
+    // Best-effort.
+  }
+}
+
+async function maybeReturnToLounge(appId) {
+  const config = getConfig();
+  if (!shouldInterceptHome(config.launcher)) return;
+  if (returningToLounge) return;
+  if (appId === APP_ID) return;
+  if (!isHomeApp(appId)) return;
+
+  // Rate-limit: root watcher + in-app poll can both fire.
+  const now = Date.now();
+  if (now - lastHomeLaunchAt < 1500) return;
+  lastHomeLaunchAt = now;
+
+  // In-app backup for the root home-watcher: whenever stock Home is foreground,
+  // bring Launch Home forward. (Root watcher is the reliable path when suspended.)
+  activity.returns += 1;
+  returningToLounge = true;
+  try {
+    await launchLoungeBestEffort();
+  } finally {
+    returningToLounge = false;
+  }
+}
+
+// Each foreground check runs luna-send as root through Homebrew Channel (a new
+// shell and process every time). Polling every 800 ms around the clock, also
+// while another app was open, kept the TV busy. Poll quickly only while a
+// launch is being watched (ghost-focus recovery below); otherwise slowly. The
+// root home-watcher reacts to the Home button itself; this is its backup.
+const FOREGROUND_POLL_FAST_MS = 800;
+const FOREGROUND_POLL_IDLE_MS = 3000;
+let foregroundWatcherOn = false;
+let foregroundPollBusy = false;
+
+function nextForegroundPollDelay() {
+  return launchPending ? FOREGROUND_POLL_FAST_MS : FOREGROUND_POLL_IDLE_MS;
+}
+
+function scheduleForegroundPoll(delay) {
+  clearTimeout(foregroundTimer);
+  foregroundTimer = setTimeout(runForegroundPoll, delay);
+}
+
+// Check soon after launching an app instead of waiting out the idle delay.
+function pokeForegroundWatcher() {
+  if (!foregroundWatcherOn || foregroundPollBusy) return;
+  scheduleForegroundPoll(FOREGROUND_POLL_FAST_MS);
+}
+
+// One check at a time: the next is scheduled only after this one finishes,
+// so slow root calls can't pile up on a busy TV.
+async function runForegroundPoll() {
+  foregroundPollBusy = true;
+  try {
+    await pollForegroundOnce();
+  } finally {
+    foregroundPollBusy = false;
+    scheduleForegroundPoll(nextForegroundPollDelay());
+  }
+}
+
+function startForegroundWatcher() {
+  if (!window.webOS || !window.webOS.service) return;
+  foregroundWatcherOn = true;
+  scheduleForegroundPoll(nextForegroundPollDelay());
+}
+
+async function pollForegroundOnce() {
+  // Keep polling while backgrounded only when we may need to intercept Home.
+  if (!visible && !shouldInterceptHome(getBaseConfig().launcher)) return;
+
+  try {
+    const res = await getForegroundApp();
+    const appId = res.appId || res.id || '';
+    noteForeground(appId);
+    const config = getConfig();
+
+    // Only pause ambient when we actually left Launch Home (or launched an app).
+    // Pausing whenever getForegroundApp() != us kills music on cold start
+    // (poll often returns Home / empty for a few seconds after launch).
+    if (
+      appId &&
+      appId !== APP_ID &&
+      config.music &&
+      config.music.pauseOnLaunch &&
+      (!visible || launchPending || wentHiddenSinceLaunch)
+    ) {
+      music.fadeOutAndPause();
+    }
+
+    // Ghost-focus recovery.
+    //
+    // Symptom (confirmed on-device): the user launches an app from the dock
+    // (e.g. a "viewer"/media app) that FAILS to fully launch -- it grabs the
+    // REMOTE INPUT but never takes the graphics foreground -- so our launcher
+    // stays fully visible on top yet receives no usable remote navigation and
+    // feels frozen. The pointer still works because pointer events route by
+    // screen position, but arrow keys go to the dead app surface.
+    //
+    // We detect this precisely:
+    //   - launchPending          : the user launched something from our dock
+    //   - !wentHiddenSinceLaunch : our surface was never backgrounded, i.e.
+    //                              we are still the top surface on screen
+    //   - appId && appId !== us  : yet the system foreground app is not us
+    //
+    // This excludes apps opened normally (they fire visibilitychange->hidden,
+    // setting wentHiddenSinceLaunch) and benign failed launches (nothing
+    // actually launched, so the foreground app stays us). In those cases we
+    // must NOT act, or we'd yank the user out of their app.
+    //
+    // Recovery: CLOSE the stuck app first -- relaunching ourselves alone is
+    // not enough because webOS keeps input routed to that app's surface until
+    // it is torn down -- then bring ourselves back to the foreground and
+    // reclaim DOM focus. We deliberately do NOT clear launchPending here: if
+    // the close/relaunch didn't take, the next poll retries until the
+    // foreground is us again (self-healing) or the 15s launch window expires.
+    if (launchPending && !wentHiddenSinceLaunch && visible &&
+        appId && appId !== APP_ID && !returningToLounge &&
+        (Date.now() - launchAt) > 2500) {
+      // Native streaming apps (Prime Video = amazon) often grab input
+      // before their card paints. Closing them looks like "launch did
+      // nothing". Re-assert once via root instead.
+      if (/amazon|netflix|youtube|disney|iplayer|apple\.appletv/i.test(appId)) {
+        if (!ghostReasserted) {
+          ghostReasserted = true;
+          try {
+            await launchAppViaRoot(appId);
+          } catch (errAssert) {
+            /* keep waiting for the native card */
+          }
+        }
+        return;
+      }
+      returningToLounge = true;
+      activity.closes += 1;
+      try {
+        await closeApp(appId);
+      } catch (err) {
+        // The stuck app may already be gone; keep going.
+      }
+      try {
+        await launchApp(APP_ID);
+      } catch (err) {
+        // Best-effort reclaim.
+      } finally {
+        returningToLounge = false;
+      }
+      reclaimInput();
+      lastForegroundAppId = APP_ID;
+      return;
+    }
+
+    // Stop watching a launch once it clearly resolved one way or another.
+    if (launchPending && (wentHiddenSinceLaunch || (Date.now() - launchAt) > 15000)) {
+      launchPending = false;
+    }
+
+    // We just became the system foreground again (e.g. after Home intercept).
+    // Force input reclaim even if visibilitychange was flaky.
+    if (appId === APP_ID && lastForegroundAppId && lastForegroundAppId !== APP_ID) {
+      scheduleReclaimBursts();
+    }
+
+    await maybeReturnToLounge(appId);
+    lastForegroundAppId = appId || lastForegroundAppId;
+  } catch (err) {
+    // Foreground polling is best-effort.
+  }
+}
+
+function handlePowerOff() {
+  music.stop();
+}
+
+async function autoEnableTerminal() {
+  if (baseConfig.launcher && baseConfig.launcher.terminalChecked) return;
+
+  let installed = [];
+  try {
+    const res = await listApps();
+    installed = (res && res.apps) || [];
+  } catch (err) {
+    return; // Could not list apps; try again on the next launch.
+  }
+
+  const terminal = installed.find(function (app) {
+    return app && isTerminalAppId(app.id);
+  });
+
+  const pinned = (baseConfig.launcher.pinnedApps || []);
+  if (terminal && pinned.indexOf(terminal.id) < 0) {
+    pinned.push(terminal.id);
+    baseConfig.launcher.pinnedApps = pinned;
+  }
+
+  baseConfig.launcher.terminalChecked = true;
+  saveConfig(baseConfig);
+}
+
+// Settings -> Backup & restore: the first start after an update keeps the
+// settings as the previous version stored them (auto/before-update-to-<this
+// version>.json), so going back to that version can restore them unchanged.
+// Needs root; skipped quietly without it.
+const LAST_RUN_VERSION_KEY = 'lounge.lastRunVersion';
+
+function keepSettingsFromBeforeUpdate() {
+  let last = null;
+  try {
+    last = localStorage.getItem(LAST_RUN_VERSION_KEY);
+    if (last === APP_VERSION) return;
+    localStorage.setItem(LAST_RUN_VERSION_KEY, APP_VERSION);
+  } catch (err) {
+    return;
+  }
+  if (!storedSettingsAtStart) return;  // first install: nothing to keep
+  let stored = null;
+  try {
+    stored = JSON.parse(storedSettingsAtStart);
+  } catch (err) {
+    return;
+  }
+  const text = settingsBackupText(stored, {
+    reason: 'before-update',
+    appVersion: last || '',
+    updatedTo: APP_VERSION
+  });
+  writeAutoBackup('before-update-to-' + APP_VERSION + '.json', text).catch(function () {
+    /* optional */
+  });
+}
+
+async function init() {
+  keepSettingsFromBeforeUpdate();
+  await applyUsbOverrides();
+  await autoEnableTerminal();
+  updateClock();
+  setInterval(updateClock, 30000);
+  bindAppScrollHints();
+
+  applyScreensaverSetting();
+  await settleHomeVolume();
+  await refreshAll();
+  weather.start();
+
+  // In-app photo/clock screensaver after idle.
+  if (customScreensaver && typeof customScreensaver.start === 'function') {
+    customScreensaver.start();
+  }
+
+  // One-shot force preview: URL, PalmSystem launch params, webOSRelaunch,
+  // or root flag file /tmp/launch-home-preview-ss (written by install/SSH).
+  function parseLaunchParamsObject(raw) {
+    if (!raw) return null;
+    if (typeof raw === 'object') return raw;
+    try { return JSON.parse(String(raw)); } catch (err) { return null; }
+  }
+  function launchParamsWantPreview() {
+    try {
+      // Injected by install/SSH: <script>window.__LH_PREVIEW_SS=1</script>
+      if (window.__LH_PREVIEW_SS === 1 || window.__LH_PREVIEW_SS === true ||
+          window.__LH_PREVIEW_SS === '1') {
+        return true;
+      }
+    } catch (err0) { /* ignore */ }
+    try {
+      if (typeof location !== 'undefined' &&
+          /(?:\?|&)previewSs=1(?:&|$)/.test(location.search || '')) {
+        return true;
+      }
+    } catch (err) { /* ignore */ }
+    const candidates = [];
+    try {
+      if (window.PalmSystem && window.PalmSystem.launchParams) {
+        candidates.push(window.PalmSystem.launchParams);
+      }
+    } catch (err2) { /* ignore */ }
+    try {
+      if (window.webOSSystem && window.webOSSystem.launchParams) {
+        candidates.push(window.webOSSystem.launchParams);
+      }
+    } catch (err3) { /* ignore */ }
+    for (let i = 0; i < candidates.length; i += 1) {
+      const p = parseLaunchParamsObject(candidates[i]);
+      if (p && (p.previewSs === 1 || p.previewSs === true || p.previewSs === '1')) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function triggerScreensaverPreview(reason) {
+    console.log('[launch-home] screensaver preview:', reason || '');
+    if (customScreensaver && typeof customScreensaver.preview === 'function') {
+      customScreensaver.preview();
+    }
+  }
+  if (launchParamsWantPreview()) {
+    setTimeout(function () { triggerScreensaverPreview('launchParams'); }, 900);
+    setTimeout(function () { triggerScreensaverPreview('launchParams-retry'); }, 2500);
+  }
+  // Root-written flag: reliable on TV even when launch params are dropped.
+  try {
+    execRoot(
+      'if [ -f /tmp/launch-home-preview-ss ]; then cat /tmp/launch-home-preview-ss; rm -f /tmp/launch-home-preview-ss; fi'
+    ).then(function (res) {
+      let text = (res && res.stdoutString ? String(res.stdoutString) : '').trim();
+      if (!text && res && res.stdoutBytes) {
+        try { text = String(atob(res.stdoutBytes)).trim(); } catch (e) { /* ignore */ }
+      }
+      if (text === '1' || text === 'preview' || text.indexOf('1') === 0) {
+        setTimeout(function () { triggerScreensaverPreview('flag-file'); }, 600);
+        setTimeout(function () { triggerScreensaverPreview('flag-file-retry'); }, 2200);
+      }
+    }).catch(function () { /* ignore */ });
+  } catch (errFlag) { /* ignore */ }
+  document.addEventListener('webOSRelaunch', function (ev) {
+    try {
+      const d = (ev && ev.detail) || {};
+      const p = d.returnValue != null ? d : (d.params || d);
+      if (p && (p.previewSs === 1 || p.previewSs === true || p.previewSs === '1')) {
+        setTimeout(function () { triggerScreensaverPreview('webOSRelaunch'); }, 400);
+      }
+    } catch (errR) { /* ignore */ }
+  });
+
+  // Mic + AI badge while a voice assistant is listening (top-right).
+  if (voiceIndicator && typeof voiceIndicator.start === 'function') {
+    voiceIndicator.start();
+  }
+
+  // Voice app launch. A voice assistant on the local socket sends appLaunch
+  // ("launch Prime Video") or transcriptFinal; launching from this foreground
+  // web app is what reliably brings native apps (Prime Video) to the front.
+  // The assistant opens its own app itself and doesn't send appLaunch for it.
+  function voiceLaunchDeduped(spec) {
+    if (!spec || !apps || typeof apps.launchApp !== 'function') return;
+    const key = String((spec.ids && spec.ids[0]) || spec.id || spec.title || '');
+    const now = Date.now();
+    if (key && key === lastVoiceLaunchKey && now - lastVoiceLaunchAt < 4000) {
+      return;
+    }
+    lastVoiceLaunchKey = key;
+    lastVoiceLaunchAt = now;
+    apps.launchApp(spec).catch(function (err) {
+      console.error(err);
+    });
+  }
+
+  addVoiceListener(function (eventName, payload) {
+    if (eventName === 'appLaunch') {
+      const ids = [];
+      if (payload && payload.id) ids.push(payload.id);
+      if (payload && Array.isArray(payload.ids)) {
+        payload.ids.forEach(function (id) {
+          if (id && ids.indexOf(id) < 0) ids.push(id);
+        });
+      }
+      if (!ids.length) return;
+      voiceLaunchDeduped({
+        id: ids[0],
+        launchId: ids[0],
+        ids: ids,
+        title: (payload && payload.spoken) || ids[0]
+      });
+      return;
+    }
+    if (eventName === 'transcriptFinal') {
+      const text = payload && (payload.text || payload.transcript);
+      const spec = resolveVoiceLaunch(text, getConfig());
+      if (spec) voiceLaunchDeduped(spec);
+    }
+  });
+
+  // Retry ambient autoplay shortly after startup (webOS often allows play once
+  // the app surface is fully focused, even if the first play() was blocked).
+  setTimeout(function () {
+    if (music && typeof music.unlockAutoplay === 'function') {
+      music.unlockAutoplay();
+    } else if (music && typeof music.fadeInAndResume === 'function') {
+      music.fadeInAndResume();
+    }
+  }, 600);
+  setTimeout(function () {
+    if (music && typeof music.unlockAutoplay === 'function') {
+      music.unlockAutoplay();
+    }
+  }, 2000);
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  // webOS fires `webOSRelaunch` on the document when the user returns to an
+  // already-running app (e.g. after another app closes or fails to launch).
+  // Treat it as a resume so a suspended launcher wakes up and regains input.
+  document.addEventListener('webOSRelaunch', function () {
+    activity.relaunches += 1;
+  });
+  document.addEventListener('webOSRelaunch', handleResume);
+  window.addEventListener('focus', function () {
+    setAppInactive(false);
+    reclaimInput();
+    if (music && typeof music.unlockAutoplay === 'function') {
+      music.unlockAutoplay();
+    }
+  });
+  window.addEventListener('blur', function () {
+    setAppInactive(true);
+  });
+  // Keys only reach the surface that has the remote, so any key means we're
+  // active again even if the focus event was missed.
+  document.addEventListener('keydown', function () {
+    setAppInactive(false);
+  }, true);
+  window.addEventListener('pagehide', handlePowerOff);
+  startForegroundWatcher();
+
+  // Re-assert root hooks if the user previously enabled them. The home watcher
+  // and boot-launch init.d must be re-written after every install (ipk replace
+  // drops scripts; hbchannel may kill orphan processes).
+  const cfg = getBaseConfig();
+  if (shouldInterceptHome(cfg.launcher) || (cfg.launcher && cfg.launcher.bootOnStart)) {
+    syncRootHooks(cfg, {quiet: true}).catch(function () { /* ignore */ });
+  }
+  syncVoice(cfg);
+}
+
+init().catch(function (err) {
+  showToast('Startup error — check USB paths');
+  console.error(err);
+});

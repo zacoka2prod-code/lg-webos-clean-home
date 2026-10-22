@@ -18,6 +18,13 @@ Un accueil pour TV LG webOS avec grandes tuiles, éclairage de fond qui suit l�
 
 Ces observations concernent l’installation C9 à l’origine de ce dépôt. La version distribuée conserve le code de cette interface, avec des valeurs par défaut génériques : météo désactivée et icônes privées retirées. Elle doit être validée sur chaque nouvelle TV.
 
+## Télécharger l’application
+
+- [IPK prêt à installer](packages/org.webosbrew.lounge.launcher_0.0.120_all.ipk) — ouvrir le fichier puis cliquer sur **Download raw file**.
+- [Somme SHA-256](packages/SHA256SUMS), pour contrôler le téléchargement.
+
+Le paquet conserve l’identifiant de Launch Home et le remplace s’il est déjà installé. Lire le guide et sauvegarder avant installation.
+
 ## Installation
 
 1. Lire [le guide d’installation](docs/INSTALLATION.fr.md), en particulier les différences entre Developer Mode et root.

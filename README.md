@@ -4,6 +4,10 @@ Un accueil pour TV LG webOS avec grandes tuiles, éclairage de fond qui suit l�
 
 **Toutes les applications visibles installées sont accessibles dans la grille défilante**, sans passer par « All apps ». Les raccourcis épinglés passent en premier, puis les autres applications. Les applications système masquées restent masquées.
 
+## Nouveautés 0.0.121
+
+Météo animée, six prévisions heure par heure, logos vectoriels supplémentaires et fête/verset facultatifs. Voir [la configuration météo et horloge](docs/METEO-HORLOGE.fr.md) et [les changements](CHANGELOG.md).
+
 ## Ce qui a été testé
 
 | Élément | Résultat |
@@ -20,7 +24,7 @@ Ces observations concernent l’installation C9 à l’origine de ce dépôt. La
 
 ## Télécharger l’application
 
-- [IPK prêt à installer](packages/org.webosbrew.lounge.launcher_0.0.120_all.ipk) — ouvrir le fichier puis cliquer sur **Download raw file**.
+- [IPK prêt à installer](packages/org.webosbrew.lounge.launcher_0.0.121_all.ipk) — ouvrir le fichier puis cliquer sur **Download raw file**.
 - [Somme SHA-256](packages/SHA256SUMS), pour contrôler le téléchargement.
 
 Le paquet conserve l’identifiant de Launch Home et le remplace s’il est déjà installé. Lire le guide et sauvegarder avant installation.
@@ -36,7 +40,7 @@ Le paquet conserve l’identifiant de Launch Home et le remplace s’il est déj
 
 ### Construire
 
-Node.js 22 recommandé pour cette configuration de dépendances.
+Node.js 24.15 ou ultérieur recommandé pour cette configuration de dépendances.
 
 ```sh
 npm ci
@@ -44,7 +48,7 @@ npm test
 npm run pack
 ```
 
-Le paquet est produit dans `dist/org.webosbrew.lounge.launcher_0.0.120_all.ipk`. `npm run pack` vérifie également les dates des fichiers contenus dans l’IPK. Les workflows CI construisent le paquet et publient un artefact téléchargeable ; un tag `v*` crée une release avec IPK et SHA-256.
+Le paquet est produit dans `dist/org.webosbrew.lounge.launcher_0.0.121_all.ipk`. `npm run pack` vérifie également les dates des fichiers contenus dans l’IPK. Les workflows CI construisent le paquet et publient un artefact téléchargeable ; un tag `v*` crée une release avec IPK et SHA-256.
 
 ### Identifiant d’application
 
@@ -55,6 +59,10 @@ L’identifiant reste `org.webosbrew.lounge.launcher`, pour conserver les interf
 Activer la météo et choisir sa ville dans les réglages. La météo est désactivée à la première installation. L’API Open-Meteo reçoit la localisation choisie lors des requêtes météo ; consulter sa [politique de confidentialité](https://open-meteo.com/en/terms). Aucune adresse IP de TV, clé SSH, compte LG, sauvegarde de TV ou application personnelle n’est incluse dans ce dépôt.
 
 Les fonctions avancées de Launch Home sont encore présentes dans le code source. Cette interface désactive la musique d’ambiance et les anciens watchers Home ; ne pas activer un second mécanisme de Home ou d’assistant vocal pendant l’installation.
+
+## Contrôles du code
+
+Voir [la revue 0.0.121](docs/REVUE-CODE.fr.md) : tests, empaquetage, données privées et alertes de dépendances restantes. L’audit complet ne doit pas être présenté comme sans vulnérabilité.
 
 ## Retour arrière et dépannage
 

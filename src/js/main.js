@@ -1,3 +1,4 @@
+import {createDailyClock} from './daily-clock.js';
 import {setClockTime} from './clock-format.js';
 import {createAllApps} from './all-apps.js';
 import {createCleanHome} from './clean-home.js';
@@ -48,6 +49,7 @@ const APP_ID = 'org.webosbrew.lounge.launcher';
 const storedSettingsAtStart = readStoredConfigText();
 let baseConfig = loadConfig();
 let cleanHome = null;
+createDailyClock(function () { return getConfig().dailyClock; });
 // This home uses the separate input-only Home hook. It never reserves an
 // audio/video player or runs the source launcher's second Home watcher.
 baseConfig.launcher.launchOnHome = false;

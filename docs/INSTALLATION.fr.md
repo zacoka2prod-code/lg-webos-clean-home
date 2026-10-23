@@ -24,7 +24,7 @@ npm test
 npm run pack
 ```
 
-Sinon, télécharger [l’IPK préparé dans packages/](../packages/org.webosbrew.lounge.launcher_0.0.120_all.ipk) et [son SHA-256](../packages/SHA256SUMS), ou récupérer un artefact d’un workflow de construction réussi. Comparer le SHA-256 téléchargé à celui publié. Ne pas installer un paquet d’une source inconnue.
+Sinon, télécharger [l’IPK préparé dans packages/](../packages/org.webosbrew.lounge.launcher_0.0.121_all.ipk) et [son SHA-256](../packages/SHA256SUMS), ou récupérer un artefact d’un workflow de construction réussi. Comparer le SHA-256 téléchargé à celui publié. Ne pas installer un paquet d’une source inconnue.
 
 ## 3. Installer l’application seule
 

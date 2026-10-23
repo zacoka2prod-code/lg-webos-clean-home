@@ -68,3 +68,7 @@ Ce dépôt est une adaptation webOS de Launch Home. N’utilise pas de commandes
 Indique le modèle et firmware, commit et IPK installés, fichiers modifiés, emplacement privé des sauvegardes, fonctions réellement vérifiées, résultat de lecture image/son, test Home, test de redémarrage et procédure de retour arrière. Distingue « configuré », « vérifié par l’outil » et « confirmé par l’utilisateur ». N’annonce pas la réussite si les essais vidéo ou le retour Home restent inconnus.
 
 Avance avec les outils disponibles et donne des points d’avancement courts. Demande les manipulations physiques uniquement lorsqu’elles sont nécessaires. N’expose aucun secret dans le compte rendu.
+
+## Version 0.0.121 : météo et horloge
+
+Consulte `docs/METEO-HORLOGE.fr.md`. Configure la météo pour la ville demandée, vérifie les six heures suivantes et les effets selon le temps. Vérifie que la carte se masque en descendant puis revient à la première rangée. La fête/phrase depuis Home Assistant est facultative : ne copie aucun jeton et n’utilise aucune adresse privée du développeur ; demande un endpoint JSON d’affichage propre à cette installation. Préserve les applications et leur ordre. Vérifie les lectures protégées et Home après tout changement d’intégration système.

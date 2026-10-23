@@ -84,7 +84,26 @@ export function createCleanHome(options) {
     closeInputs();
     options.onNetwork();
   });
-  document.addEventListener('focusin', scheduleFocus);
+  document.addEventListener('focusin', function (event) {
+    const tile = event.target.closest && event.target.closest('#app-grid .app-tile');
+    // Returning to the dock must restore the header area too. Native focus
+    // scrolling otherwise leaves a partial offset, keeping the forecast hidden.
+    if (tile && Number(tile.dataset.focusIndex) < 4) {
+      const restoreDock = function () {
+        if (document.activeElement !== tile) return;
+        shell.scrollTop = 0;
+        document.body.classList.remove('clean-grid-browsing');
+        scheduleFocus();
+      };
+      restoreDock();
+      requestAnimationFrame(restoreDock);
+      // Old WAM completes native focus scrolling after focusin has fired.
+      setTimeout(restoreDock, 220);
+    }
+    const belowDock = tile && Number(tile.dataset.focusIndex) >= 4;
+    document.body.classList.toggle('clean-grid-browsing', !!belowDock || shell.scrollTop > 70);
+    scheduleFocus();
+  });
   grid.addEventListener('transitionend', function (event) {
     if (event.propertyName === 'transform') scheduleFocus();
   });

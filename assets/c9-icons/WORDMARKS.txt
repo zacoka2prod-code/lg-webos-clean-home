@@ -4,3 +4,9 @@ YouTube: https://commons.wikimedia.org/wiki/File:YouTube_Logo_2017.svg
 Prime Video: https://commons.wikimedia.org/wiki/File:Amazon_Prime_Video_logo.svg
 The Prime Video paths are displayed in white for the blue application card.
 Company names and logos remain trademarks of their respective owners.
+
+Vector replacements (2026-10-23):
+Free wordmark: inline SVG from https://www.free.fr/freebox/free-tv/ (TV label added).
+CANAL+: https://commons.wikimedia.org/wiki/File:Logo_Canal%2B_1995.svg
+Disney+: https://commons.wikimedia.org/wiki/File:Disney_Plus_logo.svg
+Plex, Apple TV, DAZN: https://github.com/simple-icons/simple-icons/tree/develop/icons (CC0 icon paths, recolored white).

@@ -10,6 +10,7 @@ const STORAGE_KEY = 'lounge.config.v1';
 export const CONFIG_SCHEMA_VERSION = 26;
 
 export const DEFAULT_CONFIG = {
+  dailyClock: {enabled: false, endpoint: ''},
   version: CONFIG_SCHEMA_VERSION,
   profile: 'default',
   profiles: {},

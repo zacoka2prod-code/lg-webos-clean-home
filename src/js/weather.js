@@ -1,5 +1,5 @@
 /**
- * Home-screen weather: today + the next 4 days from Open-Meteo (no API key).
+ * Home-screen weather: current conditions + the next six hours from Open-Meteo (no API key).
  *
  * Ported from the Atmosphere Android app (android-weather): the same forecast
  * and geocoding endpoints, WMO code → condition mapping (WeatherIcons.kt),
@@ -246,7 +246,8 @@ function forecastUrl(location) {
     '?latitude=' + encodeURIComponent(location.latitude) +
     '&longitude=' + encodeURIComponent(location.longitude) +
     '&timezone=auto' +
-    '&current=temperature_2m,weather_code,is_day' +
+    '&current=temperature_2m,weather_code,is_day,wind_speed_10m' +
+    '&hourly=temperature_2m,weather_code,is_day,precipitation,precipitation_probability,wind_speed_10m' +
     '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
     '&forecast_days=' + DAYS_REQUESTED;
 }
@@ -350,27 +351,6 @@ function locationToday(data) {
   return new Date(Date.now() + offset * 1000).toISOString().slice(0, 10);
 }
 
-function weekdayShort(isoDate) {
-  const parts = String(isoDate).split('-');
-  const d = new Date(Date.UTC(+parts[0], +parts[1] - 1, +parts[2]));
-  return ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][d.getUTCDay()];
-}
-
-/** Town and country only: "Manchester, England, United Kingdom" → "Manchester, United Kingdom". */
-function placeLabel(name) {
-  const parts = String(name || '').split(',').map(function (p) {
-    return p.trim();
-  }).filter(Boolean);
-  if (parts.length < 2) return parts[0] || '';
-  return parts[0] + ', ' + parts[parts.length - 1];
-}
-
-function rainChance(pct) {
-  // Mirror the Android list: only call out rain when it is a real chance.
-  if (typeof pct !== 'number' || pct < 20) return '';
-  return '<span class="weather-rain">' + Math.round(pct) + '%</span>';
-}
-
 function buildDays(data) {
   const daily = (data && data.daily) || {};
   const times = daily.time || [];
@@ -389,53 +369,55 @@ function buildDays(data) {
   return {days: out, isToday: times[start] === locationToday(data)};
 }
 
-function renderPanel(el, data, cfg) {
-  const built = buildDays(data);
-  const days = built.days;
-  if (!days.length) return false;
-  moonMaskSeq = 0; // mask ids only need to be unique within one render
-  const units = cfg.units;
-  const today = days[0];
-  const current = (data && data.current) || {};
-  // Current conditions only make sense while the cache still covers today.
-  const hasCurrent = built.isToday && typeof current.temperature_2m === 'number';
-  const nowCode = hasCurrent ? current.weather_code : today.code;
-  const nowIsDay = hasCurrent ? current.is_day !== 0 : true;
-
-  // Place gets its own line across the panel so the country always fits.
-  let html = '<div class="weather-place">' + escapeHtml(placeLabel(cfg.location.name)) + '</div>' +
-    '<div class="weather-row">' +
-    '<div class="weather-today">' +
-    '<div class="weather-today-head">' +
-      '<span class="weather-day-label">' + (built.isToday ? 'Aujourd’hui' : weekdayShort(today.date)) + '</span>' +
-    '</div>' +
-    '<div class="weather-today-main">' +
-      weatherGlyphSvg(nowCode, nowIsDay) +
-      '<span class="weather-now">' + formatTemp(hasCurrent ? current.temperature_2m : today.high, units) + '</span>' +
-    '</div>' +
-    '<div class="weather-today-detail">' +
-      '<span class="weather-condition">' + escapeHtml(conditionLabel(nowCode, nowIsDay)) + '</span>' +
-      '<span class="weather-hilo">↑ ' + formatTemp(today.high, units) +
-        ' <span class="weather-low">↓ ' + formatTemp(today.low, units) + '</span>' +
-        rainChance(today.rain) + '</span>' +
-    '</div>' +
-  '</div>';
-
-  for (let i = 1; i < days.length; i += 1) {
-    const d = days[i];
-    html += '<div class="weather-day" aria-label="' + escapeHtml(weekdayShort(d.date) + ', ' +
-      conditionLabel(d.code, true) + ', high ' + formatTemp(d.high, units) + ', low ' +
-      formatTemp(d.low, units)) + '">' +
-      '<span class="weather-day-label">' + weekdayShort(d.date) + '</span>' +
-      weatherGlyphSvg(d.code, true) +
-      '<span class="weather-high">' + formatTemp(d.high, units) + '</span>' +
-      '<span class="weather-low">' + formatTemp(d.low, units) + '</span>' +
-      rainChance(d.rain) +
-    '</div>';
+export function buildHours(data, timestamp) {
+  const hourly = data.hourly || {};
+  const offset = typeof data.utc_offset_seconds === 'number' ? data.utc_offset_seconds : 0;
+  const now = new Date((timestamp == null ? Date.now() : timestamp) + offset * 1000).toISOString().slice(0, 13);
+  const times = hourly.time || [];
+  const out = [];
+  for (let i = 0; i < times.length && out.length < 6; i += 1) {
+    if (times[i].slice(0, 13) < now) continue;
+    out.push({time: times[i].slice(11, 13) + ' h', temperature: (hourly.temperature_2m || [])[i],
+      code: (hourly.weather_code || [])[i], isDay: (hourly.is_day || [])[i] !== 0,
+      rain: (hourly.precipitation || [])[i], probability: (hourly.precipitation_probability || [])[i]});
   }
-  html += '</div>';
+  return out;
+}
 
-  el.innerHTML = html;
+export function renderPanel(el, data, cfg) {
+  const built = buildDays(data);
+  if (!built.days.length) return false;
+  const today = built.days[0];
+  const current = data.current || {};
+  const hours = buildHours(data);
+  const hasCurrent = built.isToday && typeof current.temperature_2m === 'number';
+  const code = hasCurrent ? current.weather_code : today.code;
+  const day = !hasCurrent || current.is_day !== 0;
+  const condition = conditionOf(code);
+  const wind = typeof current.wind_speed_10m === 'number' ? current.wind_speed_10m : 0;
+  el.className = 'weather-panel weather-card weather-' + condition + (day ? '' : ' weather-night') + (wind >= 25 ? ' weather-windy' : '');
+  el.setAttribute('aria-label', 'Météo à ' + cfg.location.name.split(',')[0] + ', prévisions heure par heure');
+  moonMaskSeq = 0;
+  let effect = '<div class="weather-scene" aria-hidden="true"><i class="weather-sun"></i><i class="weather-moon"></i><i class="weather-cloud weather-cloud-one"></i><i class="weather-cloud weather-cloud-two"></i>';
+  for (let i = 0; i < 14; i += 1) {
+    effect += '<i class="weather-drop" style="left:' + (4 + i * 7) + '%;animation-delay:-' + (i * 0.37) + 's;animation-duration:' + (1.1 + (i % 4) * 0.3) + 's"></i>';
+  }
+  for (let i = 0; i < 3; i += 1) effect += '<i class="weather-wind weather-wind-' + i + '"></i>';
+  effect += '</div>';
+  const rainSoon = hours.some(function(h) { return h.rain >= 0.1; });
+  const summary = hours.length ? (rainSoon ? 'Précipitations dans les prochaines heures' : 'Pas de pluie prévue dans les prochaines heures') : 'Actualisation des prévisions horaires…';
+  let html = effect + '<div class="weather-content"><div class="weather-city">' + escapeHtml(cfg.location.name.split(',')[0]) + '</div>' +
+    '<div class="weather-temperature">' + formatTemp(hasCurrent ? current.temperature_2m : today.high, cfg.units) + '</div>' +
+    '<div class="weather-description">' + escapeHtml(conditionLabel(code, day)) + '</div>' +
+    '<div class="weather-range">↑ ' + formatTemp(today.high, cfg.units) + ' &nbsp; ↓ ' + formatTemp(today.low, cfg.units) +
+    (typeof current.wind_speed_10m === 'number' ? ' &nbsp; · &nbsp; Vent ' + Math.round(wind) + ' km/h' : '') + '</div>' +
+    '<div class="weather-summary">' + summary + '</div><div class="weather-hours">';
+  hours.forEach(function(h) {
+    html += '<div class="weather-hour"><span class="weather-hour-time">' + h.time + '</span>' + weatherGlyphSvg(h.code, h.isDay) +
+      '<strong>' + formatTemp(h.temperature, cfg.units) + '</strong><span class="weather-hour-rain">' +
+      (typeof h.rain === 'number' ? h.rain.toLocaleString('fr-FR', {maximumFractionDigits: 1}) + ' mm' : '–') + '</span></div>';
+  });
+  el.innerHTML = html + '</div></div>';
   return true;
 }
 
@@ -494,7 +476,7 @@ export function createWeatherPanel(el, getConfig, options) {
     const cache = paintFromCache(c);
     el.hidden = !cache;
     if (!cache) el.innerHTML = '';
-    const stale = !cache || (Date.now() - (cache.fetchedAt || 0)) > STALE_MS;
+    const stale = !cache || !cache.data.hourly || (Date.now() - (cache.fetchedAt || 0)) > STALE_MS;
     if (force || stale) return fetchNow(c);
     return Promise.resolve();
   }

@@ -57,3 +57,60 @@ body.c9-clean #app-grid .settings-tile { background: #282b34; }
 body.c9-clean #input-row { position: static; display: flex; flex-wrap: wrap; justify-content: flex-start; padding: 0; margin: 0; }
 body.c9-clean #input-row .input-chip { width: 280px; min-width: 0; margin: 10px; font-size: 24px; padding: 18px; border-radius: 18px; background: #292b36; }
 body.c9-clean .app-scroll-edge, body.c9-clean #music-bar, body.c9-clean .channel-strip { display: none !important; }
+
+/* Weather card: fixed above the scrolling apps, with light CSS weather effects. */
+body.c9-clean .weather-card { width: 640px; height: 426px; padding: 0; overflow: hidden; text-align: center; opacity: 1; background: linear-gradient(150deg,#697b8d,#344150); border: 1px solid rgba(255,255,255,.22); border-radius: 22px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.2); }
+body.c9-clean .weather-card.weather-clear, body.c9-clean .weather-card.weather-mainly-clear { background: linear-gradient(145deg,#2789c0,#75b3d1); }
+body.c9-clean .weather-card.weather-partly-cloudy { background: linear-gradient(145deg,#5c93b4,#687e94); }
+body.c9-clean .weather-card.weather-rain, body.c9-clean .weather-card.weather-drizzle { background: linear-gradient(145deg,#657480,#354353); }
+body.c9-clean .weather-card.weather-thunder { background: linear-gradient(145deg,#4e5269,#232c41); }
+body.c9-clean .weather-card.weather-snow { background: linear-gradient(145deg,#829bad,#526779); }
+body.c9-clean .weather-card.weather-night { background: linear-gradient(145deg,#24304e,#101b32); }
+.weather-content { position: relative; z-index: 1; padding: 22px 24px 18px; }
+.weather-city { font-size: 28px; font-weight: 600; line-height: 34px; }
+.weather-temperature { font-size: 84px; font-weight: 300; line-height: 94px; letter-spacing: -3px; }
+.weather-description { font-size: 23px; font-weight: 600; line-height: 30px; }
+.weather-range { font-size: 17px; line-height: 28px; color: rgba(255,255,255,.8); }
+.weather-summary { margin: 12px 0 14px; font-size: 17px; line-height: 24px; color: #edf3f8; }
+.weather-hours { display: flex; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.22); }
+.weather-hour { flex: 1 1 0; display: flex; align-items: center; flex-direction: column; font-size: 19px; line-height: 26px; }
+.weather-hour-time { font-size: 17px; color: #f4f7fb; }
+.weather-hour .weather-glyph { width: 38px; height: 38px; margin: 5px 0; }
+.weather-hour strong { font-weight: 600; }
+.weather-hour-rain { color: #bfdfef; font-size: 15px; }
+.weather-scene { position: absolute; top: 0; bottom: 0; left: 0; right: 0; overflow: hidden; pointer-events: none; }
+.weather-scene i { position: absolute; display: none; }
+.weather-sun { width: 125px; height: 125px; border-radius: 50%; top: 24px; right: 32px; background: rgba(255,225,150,.35); box-shadow: 0 0 35px 25px rgba(255,226,170,.14); animation: weather-glow 6s ease-in-out infinite alternate; }
+.weather-clear .weather-sun, .weather-mainly-clear .weather-sun, .weather-partly-cloudy .weather-sun { display: block; }
+.weather-night .weather-sun { display: none; }
+.weather-night .weather-moon { display: block; right: 55px; top: 34px; width: 68px; height: 68px; border-radius: 50%; box-shadow: -18px 8px 0 0 rgba(230,239,255,.35); animation: weather-glow 7s ease-in-out infinite alternate; }
+.weather-cloud { width: 250px; height: 72px; border-radius: 50%; background: rgba(221,231,242,.09); box-shadow: 35px -25px 0 rgba(221,231,242,.06),-35px -5px 0 rgba(221,231,242,.06); animation: weather-cloud-drift 18s ease-in-out infinite alternate; }
+.weather-cloud-one { top: 65px; left: -60px; }
+.weather-cloud-two { top: 172px; right: -60px; animation-delay: -9s; }
+.weather-overcast .weather-cloud, .weather-partly-cloudy .weather-cloud, .weather-mainly-clear .weather-cloud, .weather-rain .weather-cloud, .weather-drizzle .weather-cloud, .weather-thunder .weather-cloud, .weather-fog .weather-cloud { display: block; }
+.weather-drop { top: -25px; width: 1px; height: 18px; background: rgba(230,242,255,.32); transform: rotate(12deg); animation: weather-rain-fall 1.5s linear infinite; }
+.weather-rain .weather-drop, .weather-drizzle .weather-drop, .weather-thunder .weather-drop, .weather-snow .weather-drop { display: block; }
+.weather-snow .weather-drop { width: 4px; height: 4px; border-radius: 50%; animation-duration: 6s !important; background: rgba(255,255,255,.7); }
+.weather-wind { width: 95px; height: 15px; border-top: 2px solid rgba(232,246,255,.3); border-radius: 50%; animation: weather-wind-drift 4s linear infinite; left: -110px; }
+.weather-windy .weather-wind { display: block; }
+.weather-wind-0 { top: 70px; }.weather-wind-1 { top: 150px; animation-delay: -1.4s; }.weather-wind-2 { top: 230px; animation-delay: -2.7s; }
+@keyframes weather-rain-fall { from { transform: translate3d(0,-20px,0) rotate(12deg); } to { transform: translate3d(-65px,450px,0) rotate(12deg); } }
+@keyframes weather-cloud-drift { from { transform: translate3d(-22px,0,0); } to { transform: translate3d(90px,4px,0); } }
+@keyframes weather-glow { from { opacity: .55; transform: scale(.95); } to { opacity: 1; transform: scale(1.07); } }
+@keyframes weather-wind-drift { from { transform: translate3d(0,0,0); opacity: 0; } 20% { opacity: 1; } to { transform: translate3d(790px,-15px,0); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .weather-scene i { animation: none !important; } }
+
+/* Keep native small bitmap icons at their intended size instead of stretching them. */
+body.c9-clean #app-grid .clean-native-icon .app-icon { width: 96px; height: 96px; top: 30px; left: 132px; object-fit: contain; border-radius: 16px; }
+body.c9-clean #app-grid .clean-native-icon .app-label { top: auto; bottom: 20px; margin-top: 0; opacity: 1; }
+
+/* Same light type and quiet spacing as the TV clock. */
+#clean-daily-clock { position: absolute; left: 132px; top: 255px; width: 900px; color: #fff; pointer-events: none; transition: opacity .16s; }
+.clean-saint-line { display: flex; align-items: baseline; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,.13); }
+.clean-daily-label { color: rgba(255,255,255,.55); font-size: 18px; letter-spacing: 2px; text-transform: uppercase; font-weight: 400; }
+.clean-saint-line .clean-daily-label { margin-right: 28px; }
+.clean-saint-name { font-size: 28px; font-weight: 400; }
+.clean-verse-line { padding-top: 20px; }
+.clean-daily-verse { margin-top: 12px; font-size: 28px; font-weight: 300; line-height: 1.4; max-width: 880px; }
+.clean-daily-reference { margin-top: 12px; color: rgba(255,255,255,.5); font-size: 17px; font-weight: 300; }
+body.clean-grid-browsing #clean-daily-clock, body.clean-inputs-open #clean-daily-clock { opacity: 0; }
